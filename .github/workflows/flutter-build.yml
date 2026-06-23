@@ -21,10 +21,6 @@ jobs:
         with:
           channel: stable
 
-      - name: Enable Android SDK licenses
-        run: |
-          sudo yes | sdkmanager --licenses
-
       - name: Get Flutter dependencies
         run: flutter pub get
 
