@@ -1,0 +1,22 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+.pub/
+build/
+flutter_*.png
+android/.gradle/
+android/**/local.properties
+ios/Pods/
+ios/Runner.xcworkspace/
+**/Generated.xcconfig
+**/flutter_export_environment.sh
+**/Flutter/Flutter.framework
+**/Flutter/Flutter.podspec
+**/Flutter/Generated.xcconfig
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+**/gradle-wrapper.jar
+**/gradle-wrapper.properties
