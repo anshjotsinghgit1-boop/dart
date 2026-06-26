@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
-import 'custom_text_field.dart';
-import 'gradient_button.dart';
-import 'social_button.dart';
+import '../widgets/custom_text_field.dart';
+import '../widgets/gradient_button.dart';
+import '../widgets/social_button.dart';
 
 class AuthForm extends StatelessWidget {
   final bool isLogin;
