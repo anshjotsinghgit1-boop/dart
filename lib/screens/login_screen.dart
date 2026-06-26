@@ -1,137 +1,177 @@
 import 'package:flutter/material.dart';
-import '../widgets/auth_form.dart';
-import '../widgets/auth_mode_switcher.dart';
-import '../widgets/brand_header.dart';
-import 'signup_screen.dart';
-import 'home_screen.dart';
+import '../constants/app_colors.dart';
+import 'custom_text_field.dart';
+import 'gradient_button.dart';
+import 'social_button.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class AuthForm extends StatelessWidget {
+  final bool isLogin;
+  final bool isLoading;
 
-  @override
-  State<LoginScreen> createState() => _LoginScreenState();
-}
+  final GlobalKey<FormState> formKey;
 
-class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final TextEditingController nameController;
+  final TextEditingController emailController;
+  final TextEditingController passwordController;
+  final TextEditingController confirmController;
 
-  bool _isLoading = false;
+  final VoidCallback onSubmit;
 
-  void _goToSignup() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SignupScreen()),
-    );
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    Future.delayed(const Duration(milliseconds: 600), () {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => HomeScreen(userName: _emailController.text),
-        ),
-      );
-    });
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
+  const AuthForm({
+    super.key,
+    required this.isLogin,
+    required this.isLoading,
+    required this.formKey,
+    required this.nameController,
+    required this.emailController,
+    required this.passwordController,
+    required this.confirmController,
+    required this.onSubmit,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
+    return Form(
+      key: formKey,
+      child: Column(
         children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF0D071F), Color(0xFF271B4E), Color(0xFF120A24)],
+
+          /// Name
+          if (!isLogin) ...[
+            CustomTextField(
+              controller: nameController,
+              hint: "Full Name",
+              icon: Icons.person_outline_rounded,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return "Please enter your name";
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          /// Email
+          CustomTextField(
+            controller: emailController,
+            hint: "Email Address",
+            icon: Icons.mail_outline_rounded,
+            keyboardType: TextInputType.emailAddress,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return "Please enter email";
+              }
+
+              if (!value.contains("@")) {
+                return "Enter a valid email";
+              }
+
+              return null;
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          /// Password
+          CustomTextField(
+            controller: passwordController,
+            hint: "Password",
+            icon: Icons.lock_outline_rounded,
+            obscure: true,
+            validator: (value) {
+              if (value == null || value.length < 6) {
+                return "Minimum 6 characters";
+              }
+              return null;
+            },
+          ),
+
+          /// Confirm Password
+          if (!isLogin) ...[
+            const SizedBox(height: 16),
+
+            CustomTextField(
+              controller: confirmController,
+              hint: "Confirm Password",
+              icon: Icons.lock_reset_outlined,
+              obscure: true,
+              validator: (value) {
+                if (value != passwordController.text) {
+                  return "Passwords don't match";
+                }
+                return null;
+              },
+            ),
+          ],
+
+          const SizedBox(height: 12),
+
+          if (isLogin)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {},
+                child: const Text(
+                  "Forgot Password?",
+                  style: TextStyle(
+                    color: AppColors.pink,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
+
+          const SizedBox(height: 10),
+
+          GradientButton(
+            text: isLogin ? "Login" : "Create Account",
+            loading: isLoading,
+            onTap: onSubmit,
           ),
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const BrandHeader(),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Welcome Back',
-                    style: TextStyle(
-                      fontSize: 38,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Login karo aur apni personal Hinglish AI reply buddy pao.',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.78),
-                      fontSize: 16,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  AuthModeSwitcher(isLogin: true, onTap: _goToSignup),
-                  const SizedBox(height: 24),
-                  AuthForm(
-                    isLogin: true,
-                    isLoading: _isLoading,
-                    actionLabel: 'Login',
-                    formKey: _formKey,
-                    nameController: TextEditingController(),
-                    emailController: _emailController,
-                    passwordController: _passwordController,
-                    confirmController: TextEditingController(),
-                    onSubmit: _submit,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton(
-                        onPressed: _goToSignup,
-                        child: Text(
-                          'Naya user? Signup karo',
-                          style: TextStyle(color: Colors.white.withOpacity(0.74)),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (_) => const HomeScreen(userName: 'Rizz Lover'),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'Skip & explore',
-                          style: TextStyle(color: Colors.white.withOpacity(0.74)),
-                        ),
-                      ),
-                    ],
-                  )
-                ],
+
+          const SizedBox(height: 26),
+
+          Row(
+            children: [
+              Expanded(
+                child: Divider(
+                  color: Colors.white.withOpacity(.12),
+                ),
               ),
-            ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14),
+                child: Text(
+                  "OR",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(.55),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Divider(
+                  color: Colors.white.withOpacity(.12),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 22),
+
+          SocialButton(
+            text: "Continue with Google",
+            icon: Icons.g_mobiledata,
+            onTap: () {},
+          ),
+
+          const SizedBox(height: 14),
+
+          SocialButton(
+            text: "Continue with Apple",
+            icon: Icons.apple,
+            onTap: () {},
           ),
         ],
       ),
