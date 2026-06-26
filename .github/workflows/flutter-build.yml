@@ -1,6 +1,7 @@
 name: Build Flutter Android APK
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
