@@ -21,7 +21,7 @@ class RizzGuruApp extends StatelessWidget {
           displayColor: Colors.white,
         ),
       ),
-      home: const LoginScreen(),
+      home: LoginScreen(),
     );
   }
 }
