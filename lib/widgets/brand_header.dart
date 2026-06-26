@@ -1,46 +1,85 @@
 import 'package:flutter/material.dart';
+import '../constants/app_colors.dart';
 
 class BrandHeader extends StatelessWidget {
   const BrandHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
+        // Logo
         Container(
-          height: 60,
-          width: 60,
+          width: 105,
+          height: 105,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.pink.withOpacity(0.28),
-                blurRadius: 24,
-                offset: Offset(0, 12),
+                color: AppColors.pink.withOpacity(.35),
+                blurRadius: 35,
+                spreadRadius: 6,
               ),
             ],
           ),
-          child: const Icon(Icons.auto_awesome, size: 30, color: Colors.white),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(
+                Icons.chat_bubble_rounded,
+                size: 90,
+                color: AppColors.purple,
+              ),
+
+              Positioned(
+                top: 32,
+                child: Icon(
+                  Icons.sunglasses,
+                  size: 38,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'Rizz Guru',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            SizedBox(height: 4),
-            Text(
-              'Hinglish AI reply wala app',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ],
+
+        const SizedBox(height: 18),
+
+        // RizzGuru
+        RichText(
+          text: const TextSpan(
+            children: [
+              TextSpan(
+                text: "Rizz",
+                style: TextStyle(
+                  fontSize: 46,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: -.5,
+                ),
+              ),
+              TextSpan(
+                text: "Guru",
+                style: TextStyle(
+                  fontSize: 46,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.pink,
+                  letterSpacing: -.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        Text(
+          "Speak smooth. Win more. 💖",
+          style: TextStyle(
+            color: Colors.white.withOpacity(.75),
+            fontSize: 17,
+            fontWeight: FontWeight.w400,
+          ),
         ),
       ],
     );
