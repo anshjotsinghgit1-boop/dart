@@ -28,11 +28,11 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      - name: Print SHA-1 (for Firebase setup)
-        run: keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep SHA1
-
       - name: Build Android APK
         run: flutter build apk --release
+
+      - name: Print SHA-1 (for Firebase Google Sign-In setup)
+        run: keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep SHA1
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
