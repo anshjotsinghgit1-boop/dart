@@ -4,7 +4,7 @@ import '../widgets/custom_text_field.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/social_button.dart';
 
-class AuthForm extends StatelessWidget {
+class LoginScreen extends StatelessWidget {
   final bool isLogin;
   final bool isLoading;
 
