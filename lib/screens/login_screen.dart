@@ -57,10 +57,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  void _goHome() {
+  void _goHome(User user) {
     if (!mounted) return;
-    final user = _auth.currentUser;
-    final name = user?.displayName ?? user?.email ?? 'User';
+    final name = user.displayName ?? user.email ?? 'User';
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => HomeScreen(userName: name)),
     );
@@ -68,28 +67,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _submitEmailPassword() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
-
     try {
       if (_isLogin) {
-        await _auth.signInWithEmailAndPassword(
+        final cred = await _auth.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
-        _goHome();
+        _goHome(cred.user!);
       } else {
         final cred = await _auth.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
         await cred.user?.updateDisplayName(_nameController.text.trim());
-        _goHome();
+        await cred.user?.reload();
+        _goHome(_auth.currentUser!);
       }
     } on FirebaseAuthException catch (e) {
       _showError(_friendlyError(e.code));
     } catch (e) {
-      // Shows the raw error so you can see exactly what went wrong
       _showError('Error: ${e.toString()}');
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -109,8 +106,8 @@ class _LoginScreenState extends State<LoginScreen> {
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-      await _auth.signInWithCredential(credential);
-      _goHome();
+      final cred = await _auth.signInWithCredential(credential);
+      _goHome(cred.user!);
     } on FirebaseAuthException catch (e) {
       _showError(_friendlyError(e.code));
     } catch (e) {
