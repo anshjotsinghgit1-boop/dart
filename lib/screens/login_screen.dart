@@ -59,8 +59,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _goHome() {
     if (!mounted) return;
+    final user = _auth.currentUser;
+    final name = user?.displayName ?? user?.email ?? 'User';
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      MaterialPageRoute(builder: (_) => HomeScreen(userName: name)),
     );
   }
 
