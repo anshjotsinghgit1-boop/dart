@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../constants/app_colors.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/social_button.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,6 +24,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLogin = true;
   bool _isLoading = false;
 
+  final _auth = FirebaseAuth.instance;
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -30,13 +35,116 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _submit() {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      // TODO: add your auth logic here
-      Future.delayed(const Duration(seconds: 2), () {
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
+  void _showSuccess(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  void _goHome() {
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    );
+  }
+
+  Future<void> _submitEmailPassword() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      if (_isLogin) {
+        await _auth.signInWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+        _goHome();
+      } else {
+        final cred = await _auth.createUserWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+        await cred.user?.updateDisplayName(_nameController.text.trim());
+        _goHome();
+      }
+    } on FirebaseAuthException catch (e) {
+      _showError(_friendlyError(e.code));
+    } catch (e) {
+      // Shows the raw error so you can see exactly what went wrong
+      _showError('Error: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    try {
+      final googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
         setState(() => _isLoading = false);
-      });
+        return;
+      }
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      await _auth.signInWithCredential(credential);
+      _goHome();
+    } on FirebaseAuthException catch (e) {
+      _showError(_friendlyError(e.code));
+    } catch (e) {
+      _showError('Google error: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      _showError('Enter your email above first, then tap Forgot Password.');
+      return;
+    }
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      _showSuccess('Password reset email sent! Check your inbox.');
+    } on FirebaseAuthException catch (e) {
+      _showError(_friendlyError(e.code));
+    } catch (e) {
+      _showError('Error: ${e.toString()}');
+    }
+  }
+
+  String _friendlyError(String code) {
+    switch (code) {
+      case 'user-not-found': return 'No account found with this email.';
+      case 'wrong-password': return 'Incorrect password.';
+      case 'invalid-credential': return 'Incorrect email or password.';
+      case 'email-already-in-use': return 'An account already exists with this email.';
+      case 'weak-password': return 'Password is too weak (min 6 characters).';
+      case 'invalid-email': return 'Invalid email address.';
+      case 'network-request-failed': return 'No internet connection.';
+      case 'too-many-requests': return 'Too many attempts. Try again later.';
+      default: return 'Error ($code). Please try again.';
     }
   }
 
@@ -61,55 +169,39 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Name field (sign up only)
                 if (!_isLogin) ...[
                   CustomTextField(
                     controller: _nameController,
                     hint: 'Full Name',
                     icon: Icons.person_outline_rounded,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter your name';
-                      }
-                      return null;
-                    },
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Please enter your name' : null,
                   ),
                   const SizedBox(height: 16),
                 ],
 
-                // Email
                 CustomTextField(
                   controller: _emailController,
                   hint: 'Email Address',
                   icon: Icons.mail_outline_rounded,
                   keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Enter a valid email';
-                    }
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Please enter email';
+                    if (!v.contains('@')) return 'Enter a valid email';
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
 
-                // Password
                 CustomTextField(
                   controller: _passwordController,
                   hint: 'Password',
                   icon: Icons.lock_outline_rounded,
                   obscure: true,
-                  validator: (value) {
-                    if (value == null || value.length < 6) {
-                      return 'Minimum 6 characters';
-                    }
-                    return null;
-                  },
+                  validator: (v) =>
+                      (v == null || v.length < 6) ? 'Minimum 6 characters' : null,
                 ),
 
-                // Confirm Password (sign up only)
                 if (!_isLogin) ...[
                   const SizedBox(height: 16),
                   CustomTextField(
@@ -117,23 +209,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     hint: 'Confirm Password',
                     icon: Icons.lock_reset_outlined,
                     obscure: true,
-                    validator: (value) {
-                      if (value != _passwordController.text) {
-                        return "Passwords don't match";
-                      }
-                      return null;
-                    },
+                    validator: (v) =>
+                        v != _passwordController.text ? "Passwords don't match" : null,
                   ),
                 ],
 
                 const SizedBox(height: 12),
 
-                // Forgot password
                 if (_isLogin)
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
+                      onPressed: _forgotPassword,
                       child: const Text(
                         'Forgot Password?',
                         style: TextStyle(
@@ -149,30 +236,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 GradientButton(
                   text: _isLogin ? 'Login' : 'Create Account',
                   loading: _isLoading,
-                  onTap: _submit,
+                  onTap: _submitEmailPassword,
                 ),
 
                 const SizedBox(height: 26),
 
-                // OR divider
                 Row(
                   children: [
-                    Expanded(
-                      child: Divider(color: Colors.white.withOpacity(.12)),
-                    ),
+                    Expanded(child: Divider(color: Colors.white.withOpacity(.12))),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: Text(
-                        'OR',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(.55),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      child: Text('OR',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(.55),
+                            fontWeight: FontWeight.w600,
+                          )),
                     ),
-                    Expanded(
-                      child: Divider(color: Colors.white.withOpacity(.12)),
-                    ),
+                    Expanded(child: Divider(color: Colors.white.withOpacity(.12))),
                   ],
                 ),
 
@@ -181,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 SocialButton(
                   text: 'Continue with Google',
                   icon: Icons.g_mobiledata,
-                  onTap: () {},
+                  onTap: _signInWithGoogle,
                 ),
                 const SizedBox(height: 14),
                 SocialButton(
@@ -192,18 +272,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 28),
 
-                // Toggle login / sign up
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      _isLogin
-                          ? "Don't have an account? "
-                          : 'Already have an account? ',
+                      _isLogin ? "Don't have an account? " : 'Already have an account? ',
                       style: TextStyle(color: Colors.white.withOpacity(.6)),
                     ),
                     GestureDetector(
-                      onTap: () => setState(() => _isLogin = !_isLogin),
+                      onTap: () => setState(() {
+                        _isLogin = !_isLogin;
+                        _formKey.currentState?.reset();
+                      }),
                       child: Text(
                         _isLogin ? 'Sign Up' : 'Login',
                         style: const TextStyle(
