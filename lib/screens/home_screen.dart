@@ -1,189 +1,208 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/coins_service.dart';
+import 'replier_screen.dart';
+import 'plans_screen.dart';
+import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userName;
-
   const HomeScreen({required this.userName, super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _messageController = TextEditingController();
-  final List<_ChatMessage> _messages = [
-    _ChatMessage(
-      text: 'Hi! Main Rizz Guru hoon. Kehna kya hai? Main abhi 100% hinglish style mein reply dunga.',
-      isBot: true,
-    ),
+  int _coins = 0;
+
+  final List<Map<String, dynamic>> _moods = [
+    {'label': 'Flirty', 'emoji': '😏', 'color': const Color(0xFFFF5B63)},
+    {'label': 'Romantic', 'emoji': '💕', 'color': const Color(0xFFE91E8C)},
+    {'label': 'Funny', 'emoji': '😂', 'color': const Color(0xFFFF9800)},
+    {'label': 'Savage', 'emoji': '🔥', 'color': const Color(0xFFFF4444)},
+    {'label': 'Sweet', 'emoji': '🍯', 'color': const Color(0xFFFFB347)},
+    {'label': 'Sad', 'emoji': '💔', 'color': const Color(0xFF7B68EE)},
+    {'label': 'Confident', 'emoji': '😎', 'color': const Color(0xFF00BCD4)},
+    {'label': 'Cute', 'emoji': '🥰', 'color': const Color(0xFFFF80AB)},
   ];
 
-  void _sendMessage() {
-    final text = _messageController.text.trim();
-    if (text.isEmpty) return;
-
-    setState(() {
-      _messages.add(_ChatMessage(text: text, isBot: false));
-      _messages.add(_ChatMessage(
-        text: 'Suna: "$text". Ab suno, tumhara reply aa raha hai... aaj scene full rizz wala hai! 😎',
-        isBot: true,
-      ));
-      _messageController.clear();
-    });
+  @override
+  void initState() {
+    super.initState();
+    _loadCoins();
   }
 
-  @override
-  void dispose() {
-    _messageController.dispose();
-    super.dispose();
+  Future<void> _loadCoins() async {
+    final c = await CoinsService.getCoins();
+    if (mounted) setState(() => _coins = c);
+  }
+
+  void _openReplier(String mood, String emoji) async {
+    await Navigator.push(context,
+        MaterialPageRoute(builder: (_) => ReplierScreen(mood: mood, emoji: emoji)));
+    _loadCoins();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text('Rizz Guru', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      extendBodyBehindAppBar: true,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0D071F), Color(0xFF240A4A), Color(0xFF0C0E21)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0D071F), Color(0xFF1A0A35), Color(0xFF0C0E21)],
           ),
         ),
         child: SafeArea(
           child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Hello, ${widget.userName}',
-                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Tumhara personal AI reply buddy, sirf Hinglish mein.',
-                            style: TextStyle(color: Colors.white.withOpacity(0.72)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(Icons.chat, color: Colors.white, size: 28),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(34),
-                      topRight: Radius.circular(34),
-                    ),
-                  ),
-                  child: ListView.builder(
-                    itemCount: _messages.length,
-                    padding: const EdgeInsets.only(bottom: 20),
-                    itemBuilder: (context, index) {
-                      final message = _messages[index];
-                      return Align(
-                        alignment: message.isBot ? Alignment.centerLeft : Alignment.centerRight,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 10),
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                          decoration: BoxDecoration(
-                            color: message.isBot ? Colors.white.withOpacity(0.1) : const Color(0xFFFF5B63),
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(22),
-                              topRight: const Radius.circular(22),
-                              bottomLeft: Radius.circular(message.isBot ? 0 : 22),
-                              bottomRight: Radius.circular(message.isBot ? 22 : 0),
-                            ),
-                          ),
-                          child: Text(
-                            message.text,
-                            style: const TextStyle(color: Colors.white, fontSize: 15.2, height: 1.5),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              Container(
-                margin: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: 'Type karo koi bhi message...',
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.55)),
-                          border: InputBorder.none,
-                        ),
-                        minLines: 1,
-                        maxLines: 4,
-                      ),
-                    ),
-                    Material(
-                      color: const Color(0xFFFF5B63),
-                      borderRadius: BorderRadius.circular(16),
-                      child: InkWell(
-                        onTap: _sendMessage,
-                        borderRadius: BorderRadius.circular(16),
-                        child: const Padding(
-                          padding: EdgeInsets.all(14),
-                          child: Icon(Icons.send, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            children: [_buildTopBar(), Expanded(child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const SizedBox(height: 24),
+                _buildHeroCard(),
+                const SizedBox(height: 28),
+                const Text('Choose Your Vibe', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                _buildMoodGrid(),
+                const SizedBox(height: 28),
+                _buildCoinsCard(),
+                const SizedBox(height: 24),
+              ]),
+            ))],
           ),
         ),
       ),
     );
   }
-}
 
-class _ChatMessage {
-  final String text;
-  final bool isBot;
+  Widget _buildTopBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Hey, ${widget.userName.split(' ').first} 👋',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+          const Text('What\'s the vibe today?', style: TextStyle(color: Colors.white54, fontSize: 14)),
+        ])),
+        GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen())).then((_) => _loadCoins()),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)]),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(children: [
+              const Text('🪙', style: TextStyle(fontSize: 16)),
+              const SizedBox(width: 6),
+              Text('$_coins', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            ]),
+          ),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: () async {
+            await FirebaseAuth.instance.signOut();
+            if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+          },
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
+            child: const Icon(Icons.logout, color: Colors.white54, size: 20),
+          ),
+        ),
+      ]),
+    );
+  }
 
-  _ChatMessage({required this.text, required this.isBot});
+  Widget _buildHeroCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [BoxShadow(color: const Color(0xFFFF5B63).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('🔥 Rizz Guru', style: TextStyle(color: Colors.white70, fontSize: 14)),
+        const SizedBox(height: 8),
+        const Text('AI-Powered\nReply Generator', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, height: 1.2)),
+        const SizedBox(height: 12),
+        const Text('Pick a mood, paste the message you received, and get the perfect reply instantly.',
+            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5)),
+        const SizedBox(height: 20),
+        Wrap(spacing: 8, runSpacing: 8, children: ['✨ AI Powered', '⚡ Instant', '💯 Hinglish'].map((t) =>
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+            child: Text(t, style: const TextStyle(color: Colors.white, fontSize: 11)),
+          )).toList()),
+      ]),
+    );
+  }
+
+  Widget _buildMoodGrid() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 1.5),
+      itemCount: _moods.length,
+      itemBuilder: (context, i) {
+        final mood = _moods[i];
+        return GestureDetector(
+          onTap: () => _openReplier(mood['label'], mood['emoji']),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: (mood['color'] as Color).withOpacity(0.4), width: 1.5),
+            ),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text(mood['emoji'], style: const TextStyle(fontSize: 32)),
+              const SizedBox(height: 8),
+              Text(mood['label'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCoinsCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Row(children: [
+        const Text('🪙', style: TextStyle(fontSize: 40)),
+        const SizedBox(width: 16),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('$_coins coins remaining', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 4),
+          const Text('Each reply costs 1 coin. Get more with a plan.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        ])),
+        GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen())).then((_) => _loadCoins()),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)]),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Text('Get More', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+        ),
+      ]),
+    );
+  }
 }
