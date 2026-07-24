@@ -5,14 +5,12 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 
 class GooglePlayBillingService {
   static const String topUpProductId = 'coins_150_100';
   static const String weeklyProductId = 'rizz_weekly';
-
   static const String functionsRegion = 'asia-south1';
 
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
@@ -22,7 +20,6 @@ class GooglePlayBillingService {
   final void Function(String productId)? onPurchaseStarted;
 
   StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
-
   final Map<String, ProductDetails> _products = {};
 
   GooglePlayBillingService({
@@ -31,9 +28,8 @@ class GooglePlayBillingService {
     this.onPurchaseStarted,
   });
 
-  bool get _isAndroid {
-    return !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-  }
+  bool get _isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   Future<void> initialize() async {
     if (!_isAndroid) {
@@ -42,7 +38,6 @@ class GooglePlayBillingService {
     }
 
     final available = await _inAppPurchase.isAvailable();
-
     if (!available) {
       onError?.call('Google Play Billing is not available.');
       return;
@@ -69,7 +64,7 @@ class GooglePlayBillingService {
 
     if (response.notFoundIDs.isNotEmpty) {
       onError?.call(
-        'These products were not found in Google Play Console: '
+        'Products not found in Google Play Console: '
         '${response.notFoundIDs.join(', ')}',
       );
     }
@@ -80,7 +75,6 @@ class GooglePlayBillingService {
   }
 
   ProductDetails? product(String productId) => _products[productId];
-
   String? price(String productId) => _products[productId]?.price;
 
   Future<void> buyTopUp() async {
@@ -95,33 +89,27 @@ class GooglePlayBillingService {
     final productDetails = _products[productId];
 
     if (productDetails == null) {
-      onError?.call('Product is not available yet. Please try again.');
+      onError?.call('Product not available yet. Please try again.');
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
-
     if (user == null) {
       onError?.call('Please log in before purchasing.');
       return;
     }
 
-    PurchaseParam purchaseParam = PurchaseParam(
-      productDetails: productDetails,
-    );
+    onPurchaseStarted?.call(productId);
+
+    final PurchaseParam purchaseParam;
 
     if (_isAndroid && productDetails is GooglePlayProductDetails) {
-      final obfuscatedAccountId = sha256
-          .convert(utf8.encode(user.uid))
-          .toString();
-
       purchaseParam = GooglePlayPurchaseParam(
         productDetails: productDetails,
-        obfuscatedAccountId: obfuscatedAccountId,
       );
+    } else {
+      purchaseParam = PurchaseParam(productDetails: productDetails);
     }
-
-    onPurchaseStarted?.call(productId);
 
     if (consumable) {
       await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam);
@@ -191,11 +179,9 @@ class GooglePlayBillingService {
         await _inAppPurchase.completePurchase(purchase);
       }
     } on FirebaseFunctionsException catch (error) {
-      onError?.call(
-        error.message ?? 'The purchase could not be verified.',
-      );
-    } catch (error) {
-      onError?.call('The purchase could not be verified.');
+      onError?.call(error.message ?? 'Purchase could not be verified.');
+    } catch (_) {
+      onError?.call('Purchase could not be verified.');
     }
   }
 
