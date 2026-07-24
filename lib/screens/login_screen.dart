@@ -1,37 +1,48 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
+import '../services/coins_service.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen>
     with TickerProviderStateMixin {
-  final _formKey     = GlobalKey<FormState>();
-  final _nameCtrl    = TextEditingController();
-  final _emailCtrl   = TextEditingController();
-  final _passCtrl    = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  final _nameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
 
-  bool _isLogin    = true;
-  bool _isLoading  = false;
+  bool _isLogin = true;
+  bool _isLoading = false;
   bool _googleLoad = false;
-  bool _obscure    = true;
+  bool _obscure = true;
 
   late AnimationController _fadeCtrl;
-  late Animation<double>   _fadeAnim;
+  late Animation<double> _fadeAnim;
 
   @override
   void initState() {
     super.initState();
+
     _fadeCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 500));
-    _fadeAnim =
-        CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+
+    _fadeAnim = CurvedAnimation(
+      parent: _fadeCtrl,
+      curve: Curves.easeOut,
+    );
+
     _fadeCtrl.forward();
   }
 
@@ -45,127 +56,235 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  // ── helpers ────────────────────────────────────────────────────────────────
-
   void _toggleMode() {
     _fadeCtrl.reset();
-    setState(() => _isLogin = !_isLogin);
+
+    setState(() {
+      _isLogin = !_isLogin;
+    });
+
     _fadeCtrl.forward();
   }
 
-  void _showSnack(String msg, {bool success = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor:
-          success ? const Color(0xFF4CAF50) : const Color(0xFFFF4444),
-      behavior: SnackBarBehavior.floating,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ));
+  void _showSnack(
+    String message, {
+    bool success = false,
+  }) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success
+            ? const Color(0xFF4CAF50)
+            : const Color(0xFFFF4444),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
   }
 
   String _friendlyError(String code) {
     switch (code) {
       case 'user-not-found':
         return 'No account found with this email.';
+
       case 'wrong-password':
         return 'Incorrect password.';
+
       case 'invalid-credential':
         return 'Incorrect email or password.';
+
       case 'email-already-in-use':
         return 'An account already exists with this email.';
+
       case 'weak-password':
         return 'Password is too weak. Use at least 6 characters.';
+
       case 'invalid-email':
         return 'That email address is invalid.';
+
       case 'too-many-requests':
         return 'Too many attempts. Please try again later.';
+
+      case 'user-disabled':
+        return 'This account has been disabled.';
+
+      case 'network-request-failed':
+        return 'Please check your internet connection.';
+
+      case 'operation-not-allowed':
+        return 'This sign-in method is not enabled in Firebase.';
+
       default:
         return 'Something went wrong. Please try again.';
     }
   }
 
-  void _goHome(User user) {
+  /// Makes sure that the user has a Firestore profile.
+  ///
+  /// Coins are created only by the backend when the profile does not exist.
+  /// Existing users keep their current balance.
+  Future<void> _goHome(User user) async {
+    try {
+      await CoinsService.ensureProfile();
+    } on FirebaseAuthException catch (e) {
+      _showSnack(_friendlyError(e.code));
+      return;
+    } catch (e) {
+      _showSnack(
+        'Could not load your account. Please try again.',
+      );
+      return;
+    }
+
     if (!mounted) return;
-    final name =
-        user.displayName ?? user.email?.split('@').first ?? 'User';
+
+    final name = user.displayName?.trim().isNotEmpty == true
+        ? user.displayName!.trim()
+        : user.email?.split('@').first ?? 'User';
+
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => HomeScreen(userName: name)),
+      MaterialPageRoute(
+        builder: (_) => HomeScreen(userName: name),
+      ),
     );
   }
 
-  // ── actions ────────────────────────────────────────────────────────────────
-
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       if (_isLogin) {
-        final cred =
+        final credential =
             await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _emailCtrl.text.trim(),
           password: _passCtrl.text,
         );
-        _goHome(cred.user!);
+
+        final user = credential.user;
+
+        if (user == null) {
+          _showSnack('Could not sign in. Please try again.');
+          return;
+        }
+
+        await _goHome(user);
       } else {
-        final cred =
+        final credential =
             await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: _emailCtrl.text.trim(),
           password: _passCtrl.text,
         );
-        await cred.user?.updateDisplayName(_nameCtrl.text.trim());
-        await cred.user?.reload();
-        _goHome(FirebaseAuth.instance.currentUser!);
+
+        final user = credential.user;
+
+        if (user == null) {
+          _showSnack('Could not create your account.');
+          return;
+        }
+
+        await user.updateDisplayName(_nameCtrl.text.trim());
+        await user.reload();
+
+        final updatedUser = FirebaseAuth.instance.currentUser;
+
+        if (updatedUser == null) {
+          _showSnack('Could not load your new account.');
+          return;
+        }
+
+        await _goHome(updatedUser);
       }
     } on FirebaseAuthException catch (e) {
       _showSnack(_friendlyError(e.code));
     } catch (e) {
       _showSnack('Error: ${e.toString()}');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _googleSignIn() async {
-    setState(() => _googleLoad = true);
+    if (_googleLoad) return;
+
+    setState(() {
+      _googleLoad = true;
+    });
+
     try {
       final googleUser = await GoogleSignIn().signIn();
+
       if (googleUser == null) {
-        setState(() => _googleLoad = false);
         return;
       }
+
       final googleAuth = await googleUser.authentication;
+
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-      final cred =
+
+      final userCredential =
           await FirebaseAuth.instance.signInWithCredential(credential);
-      _goHome(cred.user!);
+
+      final user = userCredential.user;
+
+      if (user == null) {
+        _showSnack('Could not sign in with Google.');
+        return;
+      }
+
+      await _goHome(user);
     } on FirebaseAuthException catch (e) {
       _showSnack(_friendlyError(e.code));
     } catch (e) {
-      _showSnack('Google sign-in failed. Try again.');
+      _showSnack('Google sign-in failed. Please try again.');
     } finally {
-      if (mounted) setState(() => _googleLoad = false);
+      if (mounted) {
+        setState(() {
+          _googleLoad = false;
+        });
+      }
     }
   }
 
   Future<void> _forgotPassword() async {
     final email = _emailCtrl.text.trim();
+
     if (email.isEmpty || !email.contains('@')) {
       _showSnack('Enter your email above first.');
       return;
     }
+
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      _showSnack('Reset email sent! Check your inbox.', success: true);
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: email,
+      );
+
+      _showSnack(
+        'Reset email sent! Check your inbox.',
+        success: true,
+      );
     } on FirebaseAuthException catch (e) {
       _showSnack(_friendlyError(e.code));
+    } catch (_) {
+      _showSnack('Could not send the reset email.');
     }
   }
-
-  // ── build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +298,7 @@ class _LoginScreenState extends State<LoginScreen>
             colors: [
               Color(0xFF0D071F),
               Color(0xFF1A0A35),
-              Color(0xFF0C0E21)
+              Color(0xFF0C0E21),
             ],
           ),
         ),
@@ -189,27 +308,35 @@ class _LoginScreenState extends State<LoginScreen>
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.symmetric(
-                  horizontal: 24, vertical: 20),
+                horizontal: 24,
+                vertical: 20,
+              ),
               child: Form(
                 key: _formKey,
                 child: Column(
                   children: [
                     const SizedBox(height: 20),
+
                     _buildLogo(),
+
                     const SizedBox(height: 36),
+
                     _buildToggle(),
+
                     const SizedBox(height: 28),
 
-                    // Name field (sign-up only)
                     if (!_isLogin) ...[
                       _buildField(
                         _nameCtrl,
                         'Full Name',
                         Icons.person_outline_rounded,
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty)
-                                ? 'Enter your name'
-                                : null,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Enter your name';
+                          }
+
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 16),
                     ],
@@ -219,13 +346,19 @@ class _LoginScreenState extends State<LoginScreen>
                       'Email Address',
                       Icons.mail_outline_rounded,
                       type: TextInputType.emailAddress,
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Enter email';
-                        if (!v.contains('@'))
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Enter email';
+                        }
+
+                        if (!value.contains('@')) {
                           return 'Enter a valid email';
+                        }
+
                         return null;
                       },
                     ),
+
                     const SizedBox(height: 16),
 
                     _buildField(
@@ -241,32 +374,42 @@ class _LoginScreenState extends State<LoginScreen>
                           color: const Color(0xFF8A8AAA),
                           size: 20,
                         ),
-                        onPressed: () =>
-                            setState(() => _obscure = !_obscure),
+                        onPressed: () {
+                          setState(() {
+                            _obscure = !_obscure;
+                          });
+                        },
                       ),
-                      validator: (v) =>
-                          (v == null || v.length < 6)
-                              ? 'Min 6 characters'
-                              : null,
+                      validator: (value) {
+                        if (value == null || value.length < 6) {
+                          return 'Min 6 characters';
+                        }
+
+                        return null;
+                      },
                     ),
 
-                    // Confirm password (sign-up only)
                     if (!_isLogin) ...[
                       const SizedBox(height: 16),
+
                       _buildField(
                         _confirmCtrl,
                         'Confirm Password',
                         Icons.lock_reset_outlined,
                         obscure: true,
-                        validator: (v) => v != _passCtrl.text
-                            ? "Passwords don't match"
-                            : null,
+                        validator: (value) {
+                          if (value != _passCtrl.text) {
+                            return "Passwords don't match";
+                          }
+
+                          return null;
+                        },
                       ),
                     ],
 
-                    // Forgot password (login only)
                     if (_isLogin) ...[
                       const SizedBox(height: 10),
+
                       Align(
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
@@ -284,13 +427,21 @@ class _LoginScreenState extends State<LoginScreen>
                     ],
 
                     const SizedBox(height: 28),
+
                     _buildSubmitButton(),
+
                     const SizedBox(height: 24),
+
                     _buildDivider(),
+
                     const SizedBox(height: 24),
+
                     _buildGoogleButton(),
+
                     const SizedBox(height: 32),
+
                     _buildSwitchRow(),
+
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -302,8 +453,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ── widgets ────────────────────────────────────────────────────────────────
-
   Widget _buildLogo() {
     return Column(
       children: [
@@ -312,7 +461,10 @@ class _LoginScreenState extends State<LoginScreen>
           height: 82,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)],
+              colors: [
+                Color(0xFFFF5B63),
+                Color(0xFF9B22F9),
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -326,10 +478,15 @@ class _LoginScreenState extends State<LoginScreen>
             ],
           ),
           child: const Center(
-            child: Text('💬', style: TextStyle(fontSize: 38)),
+            child: Text(
+              '💬',
+              style: TextStyle(fontSize: 38),
+            ),
           ),
         ),
+
         const SizedBox(height: 18),
+
         const Text(
           'RizzGuru',
           style: TextStyle(
@@ -339,10 +496,15 @@ class _LoginScreenState extends State<LoginScreen>
             letterSpacing: 1,
           ),
         ),
+
         const SizedBox(height: 6),
+
         const Text(
           'Master the art of the perfect reply',
-          style: TextStyle(color: Color(0xFF8A8AAA), fontSize: 14),
+          style: TextStyle(
+            color: Color(0xFF8A8AAA),
+            fontSize: 14,
+          ),
         ),
       ],
     );
@@ -354,8 +516,9 @@ class _LoginScreenState extends State<LoginScreen>
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.06),
         borderRadius: BorderRadius.circular(16),
-        border:
-            Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.08),
+        ),
       ),
       child: Row(
         children: [
@@ -366,18 +529,26 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _toggleBtn(String label, bool loginMode) {
+  Widget _toggleBtn(
+    String label,
+    bool loginMode,
+  ) {
     final active = _isLogin == loginMode;
+
     return Expanded(
       child: GestureDetector(
-        onTap: () { if (!active) _toggleMode(); },
+        onTap: active ? null : _toggleMode,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             gradient: active
                 ? const LinearGradient(
-                    colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)])
+                    colors: [
+                      Color(0xFFFF5B63),
+                      Color(0xFF9B22F9),
+                    ],
+                  )
                 : null,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -401,7 +572,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildField(
-    TextEditingController ctrl,
+    TextEditingController controller,
     String hint,
     IconData icon, {
     bool obscure = false,
@@ -413,25 +584,36 @@ class _LoginScreenState extends State<LoginScreen>
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
-        border:
-            Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+        ),
       ),
       child: TextFormField(
-        controller: ctrl,
+        controller: controller,
         obscureText: obscure,
         keyboardType: type,
-        style: const TextStyle(color: Colors.white, fontSize: 15),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 15,
+        ),
         validator: validator,
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: TextStyle(
-              color: Colors.white.withOpacity(0.3), fontSize: 14),
-          prefixIcon: Icon(icon,
-              color: const Color(0xFF8A8AAA), size: 20),
+            color: Colors.white.withOpacity(0.3),
+            fontSize: 14,
+          ),
+          prefixIcon: Icon(
+            icon,
+            color: const Color(0xFF8A8AAA),
+            size: 20,
+          ),
           suffixIcon: suffix,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16, vertical: 16),
+            horizontal: 16,
+            vertical: 16,
+          ),
         ),
       ),
     );
@@ -445,7 +627,11 @@ class _LoginScreenState extends State<LoginScreen>
         height: 56,
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-              colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)]),
+            colors: [
+              Color(0xFFFF5B63),
+              Color(0xFF9B22F9),
+            ],
+          ),
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
@@ -467,7 +653,9 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 )
               : Text(
-                  _isLogin ? 'Sign In  ✨' : 'Create Account  🚀',
+                  _isLogin
+                      ? 'Sign In  ✨'
+                      : 'Create Account  🚀',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -483,20 +671,25 @@ class _LoginScreenState extends State<LoginScreen>
     return Row(
       children: [
         Expanded(
-            child: Divider(
-                color: Colors.white.withOpacity(0.1))),
+          child: Divider(
+            color: Colors.white.withOpacity(0.1),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'or continue with',
             style: TextStyle(
-                color: Colors.white.withOpacity(0.35),
-                fontSize: 12),
+              color: Colors.white.withOpacity(0.35),
+              fontSize: 12,
+            ),
           ),
         ),
         Expanded(
-            child: Divider(
-                color: Colors.white.withOpacity(0.1))),
+          child: Divider(
+            color: Colors.white.withOpacity(0.1),
+          ),
+        ),
       ],
     );
   }
@@ -511,7 +704,8 @@ class _LoginScreenState extends State<LoginScreen>
           color: Colors.white.withOpacity(0.07),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-              color: Colors.white.withOpacity(0.12)),
+            color: Colors.white.withOpacity(0.12),
+          ),
         ),
         child: Center(
           child: _googleLoad
@@ -521,7 +715,8 @@ class _LoginScreenState extends State<LoginScreen>
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFFFF5B63)),
+                      Color(0xFFFF5B63),
+                    ),
                   ),
                 )
               : Row(
@@ -570,7 +765,9 @@ class _LoginScreenState extends State<LoginScreen>
               ? "Don't have an account?  "
               : 'Already have an account?  ',
           style: const TextStyle(
-              color: Color(0xFF8A8AAA), fontSize: 14),
+            color: Color(0xFF8A8AAA),
+            fontSize: 14,
+          ),
         ),
         GestureDetector(
           onTap: _toggleMode,
