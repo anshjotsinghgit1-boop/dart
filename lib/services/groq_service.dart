@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class GroqService {
-  static const _apiKey = String.fromEnvironment('GEMINI_API_KEY');
-    static const _baseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  static const _apiKey = String.fromEnvironment('AICREDITS_API_KEY');
+  static const _baseUrl = 'https://aicredits.in/v1/chat/completions';
+  static const _model = 'gpt-4o-mini';
 
   static String _systemPrompt(String mood) {
     switch (mood.toLowerCase()) {
@@ -86,56 +86,47 @@ class GroqService {
   static Future<String> generateReply({
     required String message,
     required String mood,
+    int attempt = 0,
   }) async {
     if (_apiKey.isEmpty) {
-      throw Exception('GEMINI_API_KEY is not set. Add it as a GitHub Secret.');
+      throw Exception('AICREDITS_API_KEY is not set. Add it as a GitHub Secret.');
     }
 
-    final url = Uri.parse('$_baseUrl?key=$_apiKey');
-
     final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
+      Uri.parse(_baseUrl),
+      headers: {
+        'Authorization': 'Bearer $_apiKey',
+        'Content-Type': 'application/json',
+      },
       body: jsonEncode({
-        'system_instruction': {
-          'parts': [
-            {'text': _systemPrompt(mood)}
-          ]
-        },
-        'contents': [
-          {
-            'parts': [
-              {'text': 'Reply to this message: "$message"'}
-            ]
-          }
+        'model': _model,
+        'messages': [
+          {'role': 'system', 'content': _systemPrompt(mood)},
+          {'role': 'user', 'content': 'Reply to this message: "$message"'},
         ],
-        'generationConfig': {
-          'temperature': 0.85,
-          'maxOutputTokens': 150,
-          'topP': 0.95,
-        },
+        'temperature': 0.85,
+        'max_tokens': 150,
       }),
     );
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      final reply = data['candidates'][0]['content']['parts'][0]['text']
-          .toString()
-          .trim();
-      // Remove any wrapping quotes the model may add
-      String cleaned = reply.trim();
-if (cleaned.length >= 2 &&
-    ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
-     (cleaned.startsWith("'") && cleaned.endsWith("'")))) {
-  cleaned = cleaned.substring(1, cleaned.length - 1);
-}
-return cleaned;
-    } else if (response.statusCode == 400) {
-      throw Exception('Bad request. Check API key or prompt.');
-    } else if (response.statusCode == 429) {
-      throw Exception('Rate limit hit. Wait a moment and try again.');
+      String reply = data['choices'][0]['message']['content'].toString().trim();
+      if (reply.length >= 2 &&
+          ((reply.startsWith('"') && reply.endsWith('"')) ||
+           (reply.startsWith("'") && reply.endsWith("'")))) {
+        reply = reply.substring(1, reply.length - 1);
+      }
+      return reply;
+    } else if (response.statusCode == 429 && attempt < 2) {
+      await Future.delayed(Duration(seconds: (attempt + 1) * 3));
+      return generateReply(message: message, mood: mood, attempt: attempt + 1);
+    } else if (response.statusCode == 401) {
+      throw Exception('Invalid API key. Check your AICREDITS_API_KEY secret.');
+    } else if (response.statusCode == 402) {
+      throw Exception('Out of credits. Top up at aicredits.in');
     } else {
-      throw Exception('Gemini error ${response.statusCode}: ${response.body}');
+      throw Exception('Error ${response.statusCode}: ${response.body}');
     }
   }
 }
