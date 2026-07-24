@@ -3,8 +3,8 @@ import 'package:http/http.dart' as http;
 
 class GroqService {
   static const _apiKey = String.fromEnvironment('GEMINI_API_KEY');
-  static const _baseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+    static const _baseUrl =
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
   static String _systemPrompt(String mood) {
     switch (mood.toLowerCase()) {
