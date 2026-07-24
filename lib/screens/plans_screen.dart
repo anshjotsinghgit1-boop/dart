@@ -8,111 +8,229 @@ class PlansScreen extends StatefulWidget {
 }
 
 class _PlansScreenState extends State<PlansScreen> {
-  int _coins = 0;
+  int _currentCoins = 0;
+  bool _purchasing = false;
+  int? _purchasingIndex;
+
+  final List<Map<String, dynamic>> _plans = [
+    {
+      'coins': 20,
+      'label': 'Starter',
+      'price': 'Free',
+      'priceINR': null,
+      'emoji': '🎁',
+      'desc': 'Perfect to get started',
+      'badge': null,
+      'gradient': [const Color(0xFF4CAF50), const Color(0xFF66BB6A)],
+      'free': true,
+    },
+    {
+      'coins': 50,
+      'label': 'Basic',
+      'price': '₹49',
+      'priceINR': 49,
+      'emoji': '⚡',
+      'desc': '50 rizz replies',
+      'badge': null,
+      'gradient': [const Color(0xFF00BCD4), const Color(0xFF00E5FF)],
+      'free': false,
+    },
+    {
+      'coins': 120,
+      'label': 'Pro',
+      'price': '₹99',
+      'priceINR': 99,
+      'emoji': '🚀',
+      'desc': '120 rizz replies — best value',
+      'badge': 'POPULAR',
+      'gradient': [const Color(0xFFFF5B63), const Color(0xFF9B22F9)],
+      'free': false,
+    },
+    {
+      'coins': 300,
+      'label': 'Guru',
+      'price': '₹199',
+      'priceINR': 199,
+      'emoji': '👑',
+      'desc': '300 replies — become the Guru',
+      'badge': 'BEST DEAL',
+      'gradient': [const Color(0xFFFFB347), const Color(0xFFFFD700)],
+      'free': false,
+    },
+  ];
 
   @override
-  void initState() { super.initState(); _loadCoins(); }
+  void initState() {
+    super.initState();
+    _loadCoins();
+  }
 
   Future<void> _loadCoins() async {
     final c = await CoinsService.getCoins();
-    if (mounted) setState(() => _coins = c);
+    if (mounted) setState(() => _currentCoins = c);
   }
 
-  Future<void> _buyCoinsPack(int amount, String label) async {
-    await CoinsService.addCoins(amount);
+  Future<void> _purchase(int index, Map<String, dynamic> plan) async {
+    setState(() { _purchasing = true; _purchasingIndex = index; });
+
+    // Add coins (replace with real payment gateway later)
+    await CoinsService.addCoins(plan['coins'] as int);
     await _loadCoins();
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$label unlocked! 🎉'), backgroundColor: Colors.green));
+
+    if (mounted) {
+      setState(() { _purchasing = false; _purchasingIndex = null; });
+      _showSuccessDialog(plan);
+    }
+  }
+
+  void _showSuccessDialog(Map<String, dynamic> plan) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A0A35),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Text(plan['emoji'] as String, style: const TextStyle(fontSize: 50)),
+            const SizedBox(height: 16),
+            Text('${plan['coins']} Coins Added!',
+                style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('You now have $_currentCoins coins total.',
+                style: const TextStyle(color: Color(0xFF8A8AAA), fontSize: 14)),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF5B63),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Let\'s Rizz! 🔥', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF0D071F), Color(0xFF1A0A35), Color(0xFF0C0E21)])),
-        child: SafeArea(child: Column(children: [
-          Padding(padding: const EdgeInsets.fromLTRB(8, 12, 20, 0), child: Row(children: [
-            IconButton(icon: const Icon(Icons.arrow_back_ios, color: Colors.white), onPressed: () => Navigator.pop(context)),
-            const Expanded(child: Text('Get Coins', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)]), borderRadius: BorderRadius.circular(16)),
-              child: Row(children: [const Text('🪙', style: TextStyle(fontSize: 14)), const SizedBox(width: 4), Text('$_coins', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
-            ),
-          ])),
-          Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [
-            const SizedBox(height: 10),
-            Container(width: double.infinity, padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)]), borderRadius: BorderRadius.circular(24)),
-              child: Column(children: [
-                const Text('🪙', style: TextStyle(fontSize: 48)),
-                const SizedBox(height: 12),
-                Text('$_coins Coins Left', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                const Text('Each reply costs 1 coin', style: TextStyle(color: Colors.white70)),
-              ]),
-            ),
-            const SizedBox(height: 30),
-            const Align(alignment: Alignment.centerLeft, child: Text('Coin Packs', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))),
-            const SizedBox(height: 16),
-            _buildPlanCard(emoji: '🌱', title: 'Starter Pack', coins: 20, price: '₹29', description: '20 replies', isPopular: false),
-            const SizedBox(height: 14),
-            _buildPlanCard(emoji: '🔥', title: 'Rizz Pack', coins: 60, price: '₹69', description: '60 replies — Best Value!', isPopular: true),
-            const SizedBox(height: 14),
-            _buildPlanCard(emoji: '👑', title: 'Guru Pack', coins: 150, price: '₹149', description: '150 replies', isPopular: false),
-            const SizedBox(height: 30),
-            const Align(alignment: Alignment.centerLeft, child: Text('Daily Plans', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))),
-            const SizedBox(height: 16),
-            _buildPlanCard(emoji: '⚡', title: 'Daily Unlimited', coins: 30, price: '₹19/day', description: '30 coins daily', isPopular: false),
-            const SizedBox(height: 14),
-            _buildPlanCard(emoji: '💎', title: 'Monthly Unlimited', coins: 999, price: '₹299/mo', description: 'Unlimited replies — Best Deal!', isPopular: true),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(16)),
-              child: const Row(children: [
-                Icon(Icons.info_outline, color: Colors.white38, size: 18),
-                SizedBox(width: 10),
-                Expanded(child: Text('Payments coming soon. Tap any plan to try it free during beta!', style: TextStyle(color: Colors.white38, fontSize: 12))),
-              ]),
-            ),
-            const SizedBox(height: 20),
-          ]))),
-        ])),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0D071F), Color(0xFF1A0A35), Color(0xFF0C0E21)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildAppBar(),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      _buildCurrentCoinsWidget(),
+                      const SizedBox(height: 28),
+                      _buildSectionHeader(),
+                      const SizedBox(height: 16),
+                      ..._plans.asMap().entries.map((e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: _buildPlanCard(e.key, e.value),
+                          )),
+                      const SizedBox(height: 20),
+                      _buildFooterNote(),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildPlanCard({required String emoji, required String title, required int coins, required String price, required String description, required bool isPopular}) {
-    return Stack(children: [
-      GestureDetector(
-        onTap: () => _buyCoinsPack(coins, title),
-        child: Container(
-          width: double.infinity, padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: isPopular ? const Color(0xFFFF5B63) : Colors.white.withOpacity(0.1), width: isPopular ? 2 : 1),
+  Widget _buildAppBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 12, 20, 0),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
           ),
-          child: Row(children: [
-            Text(emoji, style: const TextStyle(fontSize: 32)),
-            const SizedBox(width: 16),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 4),
-              Text(description, style: const TextStyle(color: Colors.white54, fontSize: 13)),
-            ])),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(price, style: const TextStyle(color: Color(0xFFFF5B63), fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 4),
-              Text('+$coins 🪙', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-            ]),
-          ]),
-        ),
+          const Expanded(
+            child: Text('Get More Coins 🪙',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
-      if (isPopular) Positioned(top: -1, right: 16, child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)]), borderRadius: BorderRadius.circular(10)),
-        child: const Text('POPULAR', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-      )),
-    ]);
+    );
   }
-}
+
+  Widget _buildCurrentCoinsWidget() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2A0A4A), Color(0xFF1A1035)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFFFB347).withOpacity(0.3), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFB347).withOpacity(0.15),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Text('🪙', style: TextStyle(fontSize: 28)),
+          ),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Your Balance', style: TextStyle(color: Color(0xFF8A8AAA), fontSize: 12)),
+              const SizedBox(height: 4),
+              Text('$_currentCoins Coins',
+                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const Spacer(),
+          if (_currentCoins <= 5)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF4444).withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFF4444).withOpacity(0.4)),
+              ),
+              child: const Text('Low!', style: TextStyle(color: Color(0xFFFF4444), fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader() {
+    return const Row(
+      children: [
+        Text('Choose a Pack', style: **…**
+
+_This response is too long to display in full._
