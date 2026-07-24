@@ -229,8 +229,21 @@ class _PlansScreenState extends State<PlansScreen> {
   }
 
   Widget _buildSectionHeader() {
-    return const Row(
+    return Row(
       children: [
-        Text('Choose a Pack', style: **…**
-
-_This response is too long to display in full._
+        const Text(
+          'Choose a Pack',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const Spacer(),
+        const Text(
+          '1 coin = 1 reply',
+          style: TextStyle(color: Color(0xFF8A8AAA), fontSize: 12),
+        ),
+      ],
+    );
+  }
