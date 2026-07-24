@@ -7,7 +7,9 @@ class CoinsService {
       FirebaseFirestore.instance;
 
   static final FirebaseFunctions _functions =
-      FirebaseFunctions.instanceFor(region: 'asia-south1');
+      FirebaseFunctions.instanceFor(
+    region: 'asia-south1',
+  );
 
   static User get _currentUser {
     final user = FirebaseAuth.instance.currentUser;
@@ -19,35 +21,53 @@ class CoinsService {
     return user;
   }
 
-  static DocumentReference<Map<String, dynamic>> get _userDocument {
-    return _firestore.collection('users').doc(_currentUser.uid);
+  static DocumentReference<Map<String, dynamic>>
+      get _userDocument {
+    return _firestore
+        .collection('users')
+        .doc(_currentUser.uid);
   }
 
   /// Creates the user profile only if it does not already exist.
   ///
-  /// This does not reset coins for existing users.
-  static Future<void> ensureProfile() async {
-    await _functions.httpsCallable('ensureUserProfile').call();
+  /// Existing users keep their existing coin balance.
+  /// New users receive 20 free coins once.
+  static Future<int> ensureProfile() async {
+    final result = await _functions
+        .httpsCallable('ensureUserProfile')
+        .call();
+
+    final data = Map<String, dynamic>.from(
+      result.data as Map,
+    );
+
+    return (data['coins'] as num?)?.toInt() ?? 0;
   }
 
+  /// Reads the current balance from Firestore.
   static Future<int> getCoins() async {
     final snapshot = await _userDocument.get();
 
     if (!snapshot.exists) {
-      await ensureProfile();
-
-      final createdProfile = await _userDocument.get();
-      return (createdProfile.data()?['coins'] as num?)?.toInt() ?? 0;
+      return ensureProfile();
     }
 
-    return (snapshot.data()?['coins'] as num?)?.toInt() ?? 0;
+    final data = snapshot.data();
+
+    return (data?['coins'] as num?)?.toInt() ?? 0;
   }
 
-  /// Decrements coins atomically on the server.
+  /// Spends one coin atomically on the server.
+  ///
+  /// Returns false if the user has no coins.
   static Future<bool> spendCoin() async {
-    final result = await _functions.httpsCallable('spendCoin').call();
+    final result = await _functions
+        .httpsCallable('spendCoin')
+        .call();
 
-    final data = Map<String, dynamic>.from(result.data as Map);
+    final data = Map<String, dynamic>.from(
+      result.data as Map,
+    );
 
     return data['success'] == true;
   }
