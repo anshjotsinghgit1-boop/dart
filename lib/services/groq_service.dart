@@ -123,7 +123,13 @@ class GroqService {
           .toString()
           .trim();
       // Remove any wrapping quotes the model may add
-      return reply.replaceAll(RegExp(r'^["\']+|["\']+$'), '');
+      String cleaned = reply.trim();
+if (cleaned.length >= 2 &&
+    ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+     (cleaned.startsWith("'") && cleaned.endsWith("'")))) {
+  cleaned = cleaned.substring(1, cleaned.length - 1);
+}
+return cleaned;
     } else if (response.statusCode == 400) {
       throw Exception('Bad request. Check API key or prompt.');
     } else if (response.statusCode == 429) {
