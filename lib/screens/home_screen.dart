@@ -12,24 +12,37 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _coins = 0;
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
 
   final List<Map<String, dynamic>> _moods = [
-    {'label': 'Flirty', 'emoji': '😏', 'color': const Color(0xFFFF5B63)},
-    {'label': 'Romantic', 'emoji': '💕', 'color': const Color(0xFFE91E8C)},
-    {'label': 'Funny', 'emoji': '😂', 'color': const Color(0xFFFF9800)},
-    {'label': 'Savage', 'emoji': '🔥', 'color': const Color(0xFFFF4444)},
-    {'label': 'Sweet', 'emoji': '🍯', 'color': const Color(0xFFFFB347)},
-    {'label': 'Sad', 'emoji': '💔', 'color': const Color(0xFF7B68EE)},
-    {'label': 'Confident', 'emoji': '😎', 'color': const Color(0xFF00BCD4)},
-    {'label': 'Cute', 'emoji': '🥰', 'color': const Color(0xFFFF80AB)},
+    {'label': 'Flirty',    'emoji': '😏', 'gradient': [const Color(0xFFFF5B63), const Color(0xFFFF8A80)]},
+    {'label': 'Romantic',  'emoji': '💕', 'gradient': [const Color(0xFFE91E8C), const Color(0xFFFF4081)]},
+    {'label': 'Funny',     'emoji': '😂', 'gradient': [const Color(0xFFFF9800), const Color(0xFFFFCC02)]},
+    {'label': 'Savage',    'emoji': '🔥', 'gradient': [const Color(0xFFFF4444), const Color(0xFFFF6B35)]},
+    {'label': 'Sweet',     'emoji': '🍯', 'gradient': [const Color(0xFFFFB347), const Color(0xFFFFD700)]},
+    {'label': 'Sad',       'emoji': '💔', 'gradient': [const Color(0xFF7B68EE), const Color(0xFF9C88FF)]},
+    {'label': 'Confident', 'emoji': '😎', 'gradient': [const Color(0xFF00BCD4), const Color(0xFF00E5FF)]},
+    {'label': 'Cute',      'emoji': '🥰', 'gradient': [const Color(0xFFFF80AB), const Color(0xFFFF4081)]},
   ];
 
   @override
   void initState() {
     super.initState();
     _loadCoins();
+    _pulseController = AnimationController(vsync: this, duration: const Duration(seconds: 2))
+      ..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCoins() async {
@@ -38,8 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openReplier(String mood, String emoji) async {
-    await Navigator.push(context,
-        MaterialPageRoute(builder: (_) => ReplierScreen(mood: mood, emoji: emoji)));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => ReplierScreen(mood: mood, emoji: emoji)));
     _loadCoins();
   }
 
@@ -56,20 +68,29 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: SafeArea(
           child: Column(
-            children: [_buildTopBar(), Expanded(child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const SizedBox(height: 24),
-                _buildHeroCard(),
-                const SizedBox(height: 28),
-                const Text('Choose Your Vibe', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                _buildMoodGrid(),
-                const SizedBox(height: 28),
-                _buildCoinsCard(),
-                const SizedBox(height: 24),
-              ]),
-            ))],
+            children: [
+              _buildTopBar(),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 24),
+                      _buildHeroBanner(),
+                      const SizedBox(height: 28),
+                      _buildSectionLabel('Choose Your Vibe', Icons.mood_rounded),
+                      const SizedBox(height: 14),
+                      _buildMoodGrid(),
+                      const SizedBox(height: 28),
+                      _buildCoinsCard(),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -77,72 +98,161 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTopBar() {
+    final firstName = widget.userName.split(' ').first;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      child: Row(children: [
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Hey, ${widget.userName.split(' ').first} 👋',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-          const Text('What\'s the vibe today?', style: TextStyle(color: Colors.white54, fontSize: 14)),
-        ])),
-        GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen())).then((_) => _loadCoins()),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               gradient: const LinearGradient(colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)]),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Row(children: [
-              const Text('🪙', style: TextStyle(fontSize: 16)),
-              const SizedBox(width: 6),
-              Text('$_coins', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-            ]),
+            child: Center(
+              child: Text(
+                firstName.isNotEmpty ? firstName[0].toUpperCase() : 'R',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        GestureDetector(
-          onTap: () async {
-            await FirebaseAuth.instance.signOut();
-            if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-          },
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.logout, color: Colors.white54, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Hey, $firstName 👋',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                const Text('What\'s the vibe today?',
+                    style: TextStyle(color: Color(0xFF8A8AAA), fontSize: 12)),
+              ],
+            ),
           ),
-        ),
-      ]),
+          GestureDetector(
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const PlansScreen()))
+                .then((_) => _loadCoins()),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)]),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(color: const Color(0xFFFF5B63).withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Text('🪙', style: TextStyle(fontSize: 15)),
+                  const SizedBox(width: 5),
+                  Text('$_coins', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () async {
+              await FirebaseAuth.instance.signOut();
+              if (mounted) {
+                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: const Icon(Icons.logout_rounded, color: Color(0xFF8A8AAA), size: 18),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildHeroCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)],
+  Widget _buildHeroBanner() {
+    return ScaleTransition(
+      scale: _pulseAnimation,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF2A0A4A), Color(0xFF1A1035)],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFFF5B63).withOpacity(0.3), width: 1.5),
+          boxShadow: [
+            BoxShadow(color: const Color(0xFF9B22F9).withOpacity(0.2), blurRadius: 30, offset: const Offset(0, 10)),
+          ],
         ),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [BoxShadow(color: const Color(0xFFFF5B63).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF5B63).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFFF5B63).withOpacity(0.4)),
+                    ),
+                    child: const Text('✨ AI-Powered Rizz',
+                        style: TextStyle(color: Color(0xFFFF5B63), fontSize: 11, fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Never Run Out\nof Words Again',
+                      style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, height: 1.25)),
+                  const SizedBox(height: 8),
+                  const Text('Pick a vibe and get the\nperfect reply in seconds.',
+                      style: TextStyle(color: Color(0xFF8A8AAA), fontSize: 13, height: 1.4)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(color: const Color(0xFFFF5B63).withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 6))
+                ],
+              ),
+              child: const Center(child: Text('💬', style: TextStyle(fontSize: 34))),
+            ),
+          ],
+        ),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('🔥 Rizz Guru', style: TextStyle(color: Colors.white70, fontSize: 14)),
-        const SizedBox(height: 8),
-        const Text('AI-Powered\nReply Generator', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, height: 1.2)),
-        const SizedBox(height: 12),
-        const Text('Pick a mood, paste the message you received, and get the perfect reply instantly.',
-            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5)),
-        const SizedBox(height: 20),
-        Wrap(spacing: 8, runSpacing: 8, children: ['✨ AI Powered', '⚡ Instant', '💯 Hinglish'].map((t) =>
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-            child: Text(t, style: const TextStyle(color: Colors.white, fontSize: 11)),
-          )).toList()),
-      ]),
+    );
+  }
+
+  Widget _buildSectionLabel(String title, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFF5B63).withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: const Color(0xFFFF5B63), size: 16),
+        ),
+        const SizedBox(width: 10),
+        Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 
@@ -150,27 +260,17 @@ class _HomeScreenState extends State<HomeScreen> {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 1.5),
       itemCount: _moods.length,
-      itemBuilder: (context, i) {
-        final mood = _moods[i];
-        return GestureDetector(
-          onTap: () => _openReplier(mood['label'], mood['emoji']),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: (mood['color'] as Color).withOpacity(0.4), width: 1.5),
-            ),
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(mood['emoji'], style: const TextStyle(fontSize: 32)),
-              const SizedBox(height: 8),
-              Text(mood['label'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
-            ]),
-          ),
-        );
-      },
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 14,
+        childAspectRatio: 1.25,
+      ),
+      itemBuilder: (ctx, i) => _MoodCard(
+        mood: _moods[i],
+        onTap: () => _openReplier(_moods[i]['label'] as String, _moods[i]['emoji'] as String),
+      ),
     );
   }
 
@@ -179,30 +279,136 @@ class _HomeScreenState extends State<HomeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
-      child: Row(children: [
-        const Text('🪙', style: TextStyle(fontSize: 40)),
-        const SizedBox(width: 16),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('$_coins coins remaining', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 4),
-          const Text('Each reply costs 1 coin. Get more with a plan.', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        ])),
-        GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen())).then((_) => _loadCoins()),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)]),
-              borderRadius: BorderRadius.circular(14),
+              color: const Color(0xFFFFB347).withOpacity(0.15),
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: const Text('Get More', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+            child: const Text('🪙', style: TextStyle(fontSize: 26)),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$_coins Coins Left',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 4),
+                Text(
+                  _coins > 0 ? 'Each reply costs 1 coin' : 'Out of coins — top up now!',
+                  style: const TextStyle(color: Color(0xFF8A8AAA), fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen()))
+                .then((_) => _loadCoins()),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)]),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(color: const Color(0xFFFF5B63).withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))
+                ],
+              ),
+              child: const Text('Top Up', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Mood Card ──────────────────────────────────────────────────────────────────
+class _MoodCard extends StatefulWidget {
+  final Map<String, dynamic> mood;
+  final VoidCallback onTap;
+  const _MoodCard({required this.mood, required this.onTap});
+  @override
+  State<_MoodCard> createState() => _MoodCardState();
+}
+
+class _MoodCardState extends State<_MoodCard> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 110));
+    _scale = Tween<double>(begin: 1.0, end: 0.93)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    final gradients = widget.mood['gradient'] as List<Color>;
+    final label     = widget.mood['label'] as String;
+    final emoji     = widget.mood['emoji'] as String;
+
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp:   (_) { _ctrl.reverse(); widget.onTap(); },
+      onTapCancel: ()  => _ctrl.reverse(),
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [gradients[0].withOpacity(0.18), gradients[1].withOpacity(0.07)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: gradients[0].withOpacity(0.4), width: 1.2),
+            boxShadow: [
+              BoxShadow(color: gradients[0].withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))
+            ],
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                top: -12,
+                right: -12,
+                child: Container(
+                  width: 55,
+                  height: 55,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: gradients[0].withOpacity(0.15)),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(emoji, style: const TextStyle(fontSize: 32)),
+                    const SizedBox(height: 8),
+                    Text(label,
+                        style: TextStyle(color: gradients[0], fontWeight: FontWeight.bold, fontSize: 15)),
+                    const SizedBox(height: 2),
+                    Text('Tap to rizz',
+                        style: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 11)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-      ]),
+      ),
     );
   }
 }
