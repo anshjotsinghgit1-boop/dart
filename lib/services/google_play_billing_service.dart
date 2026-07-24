@@ -15,15 +15,13 @@ class GooglePlayBillingService {
 
   static const String functionsRegion = 'asia-south1';
 
-  final InAppPurchase _inAppPurchase =
-      InAppPurchase.instance;
+  final InAppPurchase _inAppPurchase = InAppPurchase.instance;
 
   final void Function(int coins)? onCoinsUpdated;
   final void Function(String message)? onError;
   final void Function(String productId)? onPurchaseStarted;
 
-  StreamSubscription<List<PurchaseDetails>>?
-      _purchaseSubscription;
+  StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
 
   final Map<String, ProductDetails> _products = {};
 
@@ -34,48 +32,37 @@ class GooglePlayBillingService {
   });
 
   bool get _isAndroid {
-    return !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.android;
+    return !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   }
 
   Future<void> initialize() async {
     if (!_isAndroid) {
-      onError?.call(
-        'Google Play Billing is available only on Android.',
-      );
+      onError?.call('Google Play Billing is available only on Android.');
       return;
     }
 
-    final available =
-        await _inAppPurchase.isAvailable();
+    final available = await _inAppPurchase.isAvailable();
 
     if (!available) {
-      onError?.call(
-        'Google Play Billing is not available.',
-      );
+      onError?.call('Google Play Billing is not available.');
       return;
     }
 
-    _purchaseSubscription =
-        _inAppPurchase.purchaseStream.listen(
+    _purchaseSubscription = _inAppPurchase.purchaseStream.listen(
       _handlePurchaseUpdates,
       onError: (Object error) {
-        onError?.call(
-          'Purchase stream error: $error',
-        );
+        onError?.call('Purchase stream error: $error');
       },
     );
 
-    final response =
-        await _inAppPurchase.queryProductDetails({
+    final response = await _inAppPurchase.queryProductDetails({
       topUpProductId,
       weeklyProductId,
     });
 
     if (response.error != null) {
       onError?.call(
-        response.error?.message ??
-            'Could not load Google Play products.',
+        response.error?.message ?? 'Could not load Google Play products.',
       );
       return;
     }
@@ -92,47 +79,30 @@ class GooglePlayBillingService {
     }
   }
 
-  ProductDetails? product(String productId) {
-    return _products[productId];
-  }
+  ProductDetails? product(String productId) => _products[productId];
 
-  String? price(String productId) {
-    return _products[productId]?.price;
-  }
+  String? price(String productId) => _products[productId]?.price;
 
   Future<void> buyTopUp() async {
-    await _buy(
-      topUpProductId,
-      consumable: true,
-    );
+    await _buy(topUpProductId, consumable: true);
   }
 
   Future<void> buyWeeklyPlan() async {
-    await _buy(
-      weeklyProductId,
-      consumable: false,
-    );
+    await _buy(weeklyProductId, consumable: false);
   }
 
-  Future<void> _buy(
-    String productId, {
-    required bool consumable,
-  }) async {
+  Future<void> _buy(String productId, {required bool consumable}) async {
     final productDetails = _products[productId];
 
     if (productDetails == null) {
-      onError?.call(
-        'Product is not available yet. Please try again.',
-      );
+      onError?.call('Product is not available yet. Please try again.');
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      onError?.call(
-        'Please log in before purchasing.',
-      );
+      onError?.call('Please log in before purchasing.');
       return;
     }
 
@@ -140,38 +110,23 @@ class GooglePlayBillingService {
       productDetails: productDetails,
     );
 
-    if (_isAndroid &&
-        productDetails is GooglePlayProductDetails) {
-      final obfuscatedProfileId = sha256
+    if (_isAndroid && productDetails is GooglePlayProductDetails) {
+      final obfuscatedAccountId = sha256
           .convert(utf8.encode(user.uid))
           .toString();
 
       purchaseParam = GooglePlayPurchaseParam(
         productDetails: productDetails,
-        offerToken: productDetails.offerToken,
-        obfuscatedProfileId: obfuscatedProfileId,
+        obfuscatedAccountId: obfuscatedAccountId,
       );
     }
 
     onPurchaseStarted?.call(productId);
 
-    final bool started;
-
     if (consumable) {
-      started = await _inAppPurchase.buyConsumable(
-        purchaseParam: purchaseParam,
-        autoConsume: false,
-      );
+      await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam);
     } else {
-      started = await _inAppPurchase.buyNonConsumable(
-        purchaseParam: purchaseParam,
-      );
-    }
-
-    if (!started) {
-      onError?.call(
-        'Google Play could not start the purchase.',
-      );
+      await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
     }
   }
 
@@ -181,47 +136,42 @@ class GooglePlayBillingService {
     for (final purchase in purchases) {
       switch (purchase.status) {
         case PurchaseStatus.pending:
-          continue;
-
-        case PurchaseStatus.error:
-          onError?.call(
-            purchase.error?.message ??
-                'Google Play purchase failed.',
-          );
-          continue;
-
-        case PurchaseStatus.canceled:
-          onError?.call(
-            'Purchase was canceled.',
-          );
-          continue;
+          break;
 
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          await _verifyPurchase(purchase);
-          continue;
+          await _verifyWithServer(purchase);
+          break;
+
+        case PurchaseStatus.error:
+          onError?.call(
+            purchase.error?.message ?? 'An unknown purchase error occurred.',
+          );
+          if (purchase.pendingCompletePurchase) {
+            await _inAppPurchase.completePurchase(purchase);
+          }
+          break;
+
+        case PurchaseStatus.canceled:
+          break;
       }
     }
   }
 
-  Future<void> _verifyPurchase(
-    PurchaseDetails purchase,
-  ) async {
-    final purchaseToken =
-        purchase.verificationData.serverVerificationData;
+  Future<void> _verifyWithServer(PurchaseDetails purchase) async {
+    String? purchaseToken;
 
-    if (purchaseToken.isEmpty) {
-      onError?.call(
-        'Google Play returned an empty purchase token.',
-      );
+    if (purchase is GooglePlayPurchaseDetails) {
+      purchaseToken = purchase.billingClientPurchase.purchaseToken;
+    }
+
+    if (purchaseToken == null || purchaseToken.isEmpty) {
+      onError?.call('Google Play returned an empty purchase token.');
       return;
     }
 
     try {
-      final functions =
-          FirebaseFunctions.instanceFor(
-        region: functionsRegion,
-      );
+      final functions = FirebaseFunctions.instanceFor(region: functionsRegion);
 
       final result = await functions
           .httpsCallable('verifyGooglePlayPurchase')
@@ -230,10 +180,7 @@ class GooglePlayBillingService {
         'purchaseToken': purchaseToken,
       });
 
-      final data = Map<String, dynamic>.from(
-        result.data as Map,
-      );
-
+      final data = Map<String, dynamic>.from(result.data as Map);
       final coins = (data['coins'] as num?)?.toInt();
 
       if (coins != null) {
@@ -241,19 +188,14 @@ class GooglePlayBillingService {
       }
 
       if (purchase.pendingCompletePurchase) {
-        await _inAppPurchase.completePurchase(
-          purchase,
-        );
+        await _inAppPurchase.completePurchase(purchase);
       }
     } on FirebaseFunctionsException catch (error) {
       onError?.call(
-        error.message ??
-            'The purchase could not be verified.',
+        error.message ?? 'The purchase could not be verified.',
       );
     } catch (error) {
-      onError?.call(
-        'The purchase could not be verified.',
-      );
+      onError?.call('The purchase could not be verified.');
     }
   }
 
