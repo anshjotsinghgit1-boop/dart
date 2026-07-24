@@ -71,14 +71,19 @@ class _PlansScreenState extends State<PlansScreen> {
   }
 
   Future<void> _purchase(int index, Map<String, dynamic> plan) async {
-    setState(() { _purchasing = true; _purchasingIndex = index; });
+    setState(() {
+      _purchasing = true;
+      _purchasingIndex = index;
+    });
 
-    // Add coins (replace with real payment gateway later)
     await CoinsService.addCoins(plan['coins'] as int);
     await _loadCoins();
 
     if (mounted) {
-      setState(() { _purchasing = false; _purchasingIndex = null; });
+      setState(() {
+        _purchasing = false;
+        _purchasingIndex = null;
+      });
       _showSuccessDialog(plan);
     }
   }
@@ -95,22 +100,36 @@ class _PlansScreenState extends State<PlansScreen> {
             const SizedBox(height: 8),
             Text(plan['emoji'] as String, style: const TextStyle(fontSize: 50)),
             const SizedBox(height: 16),
-            Text('${plan['coins']} Coins Added!',
-                style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            Text(
+              '${plan['coins']} Coins Added!',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
-            Text('You now have $_currentCoins coins total.',
-                style: const TextStyle(color: Color(0xFF8A8AAA), fontSize: 14)),
+            Text(
+              'You now have $_currentCoins coins total.',
+              style: const TextStyle(color: Color(0xFF8A8AAA), fontSize: 14),
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFF5B63),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Let\'s Rizz! 🔥', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                child: const Text(
+                  'Let\'s Rizz! 🔥',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16),
+                ),
               ),
             ),
           ],
@@ -172,8 +191,13 @@ class _PlansScreenState extends State<PlansScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           const Expanded(
-            child: Text('Get More Coins 🪙',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            child: Text(
+              'Get More Coins 🪙',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -190,7 +214,8 @@ class _PlansScreenState extends State<PlansScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFFFB347).withOpacity(0.3), width: 1.5),
+        border: Border.all(
+            color: const Color(0xFFFFB347).withOpacity(0.3), width: 1.5),
       ),
       child: Row(
         children: [
@@ -206,22 +231,35 @@ class _PlansScreenState extends State<PlansScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Your Balance', style: TextStyle(color: Color(0xFF8A8AAA), fontSize: 12)),
+              const Text('Your Balance',
+                  style:
+                      TextStyle(color: Color(0xFF8A8AAA), fontSize: 12)),
               const SizedBox(height: 4),
-              Text('$_currentCoins Coins',
-                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              Text(
+                '$_currentCoins Coins',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const Spacer(),
           if (_currentCoins <= 5)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: const Color(0xFFFF4444).withOpacity(0.15),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFF4444).withOpacity(0.4)),
+                border: Border.all(
+                    color: const Color(0xFFFF4444).withOpacity(0.4)),
               ),
-              child: const Text('Low!', style: TextStyle(color: Color(0xFFFF4444), fontSize: 12, fontWeight: FontWeight.bold)),
+              child: const Text('Low!',
+                  style: TextStyle(
+                      color: Color(0xFFFF4444),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold)),
             ),
         ],
       ),
@@ -234,10 +272,9 @@ class _PlansScreenState extends State<PlansScreen> {
         const Text(
           'Choose a Pack',
           style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold),
         ),
         const Spacer(),
         const Text(
@@ -247,3 +284,153 @@ class _PlansScreenState extends State<PlansScreen> {
       ],
     );
   }
+
+  // ── THIS METHOD WAS MISSING ──────────────────────────────────────────────
+  Widget _buildPlanCard(int index, Map<String, dynamic> plan) {
+    final gradientColors = (plan['gradient'] as List).cast<Color>();
+    final bool isFree = plan['free'] as bool;
+    final bool isLoading = _purchasing && _purchasingIndex == index;
+    final String? badge = plan['badge'] as String?;
+
+    return GestureDetector(
+      onTap: isLoading ? null : () => _purchase(index, plan),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              gradientColors[0].withOpacity(0.15),
+              gradientColors[1].withOpacity(0.08),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: gradientColors[0].withOpacity(0.4), width: 1.5),
+        ),
+        child: Row(
+          children: [
+            // Emoji badge
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: gradientColors),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Text(plan['emoji'] as String,
+                    style: const TextStyle(fontSize: 26)),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Label + desc
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        plan['label'] as String,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            gradient:
+                                LinearGradient(colors: gradientColors),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            badge,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    plan['desc'] as String,
+                    style: const TextStyle(
+                        color: Color(0xFF8A8AAA), fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${plan['coins']} coins',
+                    style: TextStyle(
+                        color: gradientColors[0],
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Price / button
+            isLoading
+                ? SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: gradientColors[0]),
+                  )
+                : Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      gradient:
+                          LinearGradient(colors: gradientColors),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      isFree ? 'Claim' : plan['price'] as String,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14),
+                    ),
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── THIS METHOD WAS MISSING ──────────────────────────────────────────────
+  Widget _buildFooterNote() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1035).withOpacity(0.6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: const Color(0xFF8A8AAA).withOpacity(0.2)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.info_outline_rounded,
+              color: Color(0xFF8A8AAA), size: 16),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Coins are added instantly after purchase. No expiry.',
+              style: TextStyle(color: Color(0xFF8A8AAA), fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+} // ← closing brace for _PlansScreenState (was missing)
