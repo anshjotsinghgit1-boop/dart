@@ -21,7 +21,7 @@ class CoinsService {
   }
 
   static String get _docUrl =>
-      '$_base/projects/$_project/databases/(default)/documents/users/${_user.uid}';
+      '$_base/projects/$_project/databases/databaseforrizzaj/documents/users/${_user.uid}';
 
   static Future<int> ensureProfile() async {
     final token = await _token();
