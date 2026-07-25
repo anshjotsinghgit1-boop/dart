@@ -133,9 +133,9 @@ class _LoginScreenState extends State<LoginScreen>
     } on FirebaseAuthException catch (e) {
       _showSnack(_friendlyError(e.code));
       return;
-    } catch (e) {
+        } catch (e) {
       _showSnack(
-        'Could not load your account. Please try again.',
+        'DEBUG: ${e.runtimeType}: $e',
       );
       return;
     }
@@ -251,8 +251,8 @@ class _LoginScreenState extends State<LoginScreen>
       await _goHome(user);
     } on FirebaseAuthException catch (e) {
       _showSnack(_friendlyError(e.code));
-    } catch (e) {
-      _showSnack('Google sign-in failed. Please try again.');
+        } catch (e) {
+      _showSnack('DEBUG Google: ${e.runtimeType}: $e');
     } finally {
       if (mounted) {
         setState(() {
