@@ -14,6 +14,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _coins = 0;
+  String _debugInfo = 'loading...';
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -45,13 +46,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
-    Future<void> _loadCoins() async {
-    try {
-      final c = await CoinsService.getCoins();
-      if (mounted) setState(() => _coins = c);
-    } catch (_) {
-      // Silently keep _coins = 0 if offline
-    }
+  Future<void> _loadCoins() async {
+    final c = await CoinsService.getCoins();
+    if (mounted) setState(() {
+      _coins = c;
+      _debugInfo = CoinsService.lastDebug;
+    });
   }
 
   void _openReplier(String mood, String emoji) async {
@@ -74,6 +74,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Column(
             children: [
               _buildTopBar(),
+              // DEBUG BANNER — remove before release
+              Container(
+                color: Colors.black,
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                child: SelectableText(
+                  _debugInfo,
+                  style: const TextStyle(
+                    color: Colors.yellow,
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -349,24 +363,29 @@ class _MoodCardState extends State<_MoodCard> with SingleTickerProviderStateMixi
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 110));
-    _scale = Tween<double>(begin: 1.0, end: 0.93)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 120));
+    _scale = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final label = widget.mood['label'] as String;
+    final emoji = widget.mood['emoji'] as String;
     final gradients = widget.mood['gradient'] as List<Color>;
-    final label     = widget.mood['label'] as String;
-    final emoji     = widget.mood['emoji'] as String;
 
     return GestureDetector(
+      onTap: widget.onTap,
       onTapDown: (_) => _ctrl.forward(),
-      onTapUp:   (_) { _ctrl.reverse(); widget.onTap(); },
-      onTapCancel: ()  => _ctrl.reverse(),
+      onTapUp: (_) => _ctrl.reverse(),
+      onTapCancel: () => _ctrl.reverse(),
       child: ScaleTransition(
         scale: _scale,
         child: Container(
