@@ -14,16 +14,14 @@ class CoinsService {
       _firestore.collection('users').doc(_user.uid);
 
   /// Creates profile with 20 free coins if it doesn't exist yet.
-  static Future<int> ensureProfile() async {
-    final snap = await _doc.get();
-    if (!snap.exists) {
-      await _doc.set({
-        'coins': 20,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      return 20;
+    static Future<int> getCoins() async {
+    try {
+      final snap = await _doc.get();
+      if (!snap.exists) return await ensureProfile();
+      return (snap.data()?['coins'] as num?)?.toInt() ?? 0;
+    } catch (_) {
+      return 0; // Firestore offline — show 0, will retry later
     }
-    return (snap.data()?['coins'] as num?)?.toInt() ?? 0;
   }
 
   /// Returns current coin balance.
