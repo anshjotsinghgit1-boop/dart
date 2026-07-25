@@ -45,9 +45,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  Future<void> _loadCoins() async {
-    final c = await CoinsService.getCoins();
-    if (mounted) setState(() => _coins = c);
+    Future<void> _loadCoins() async {
+    try {
+      final c = await CoinsService.getCoins();
+      if (mounted) setState(() => _coins = c);
+    } catch (_) {
+      // Silently keep _coins = 0 if offline
+    }
   }
 
   void _openReplier(String mood, String emoji) async {
