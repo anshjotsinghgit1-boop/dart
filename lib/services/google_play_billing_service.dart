@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -147,42 +147,45 @@ class GooglePlayBillingService {
   }
 
   Future<void> _verifyWithServer(PurchaseDetails purchase) async {
-    String? purchaseToken;
-
-    if (purchase is GooglePlayPurchaseDetails) {
-      purchaseToken = purchase.billingClientPurchase.purchaseToken;
-    }
-
-    if (purchaseToken == null || purchaseToken.isEmpty) {
-      onError?.call('Google Play returned an empty purchase token.');
-      return;
-    }
-
     try {
-      final functions = FirebaseFunctions.instanceFor(region: functionsRegion);
+      int coins = 0;
 
-      final result = await functions
-          .httpsCallable('verifyGooglePlayPurchase')
-          .call({
-        'productId': purchase.productID,
-        'purchaseToken': purchaseToken,
-      });
+      if (purchase.productID == weeklyProductId) {
+        coins = 150;
+      } else if (purchase.productID == topUpProductId) {
+        coins = 150;
+      }
 
-      final data = Map<String, dynamic>.from(result.data as Map);
-      final coins = (data['coins'] as num?)?.toInt();
-
-      if (coins != null) {
-        onCoinsUpdated?.call(coins);
+      if (coins > 0) {
+        await _addCoinsDirectly(coins);
       }
 
       if (purchase.pendingCompletePurchase) {
         await _inAppPurchase.completePurchase(purchase);
       }
-    } on FirebaseFunctionsException catch (error) {
-      onError?.call(error.message ?? 'Purchase could not be verified.');
-    } catch (_) {
-      onError?.call('Purchase could not be verified.');
+    } catch (error) {
+      onError?.call('Could not complete purchase. Try again.');
     }
+  }
+
+  Future<void> _addCoinsDirectly(int coins) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .update({
+      'coins': FieldValue.increment(coins),
+    });
+
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    final updatedCoins = (snap.data()?['coins'] as num?)?.toInt() ?? 0;
+    onCoinsUpdated?.call(updatedCoins);
   }
 
   Future<void> dispose() async {
