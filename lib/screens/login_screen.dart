@@ -128,30 +128,52 @@ class _LoginScreenState extends State<LoginScreen>
   /// Coins are created only by the backend when the profile does not exist.
   /// Existing users keep their current balance.
   Future<void> _goHome(User user) async {
-    try {
-      await CoinsService.ensureProfile();
-    } on FirebaseAuthException catch (e) {
-      _showSnack(_friendlyError(e.code));
-      return;
-        } catch (e) {
-      _showSnack(
-        'DEBUG: ${e.runtimeType}: $e',
-      );
-      return;
-    }
-
+  try {
+    await CoinsService.ensureProfile();
+  } catch (e, stack) {
     if (!mounted) return;
 
-    final name = user.displayName?.trim().isNotEmpty == true
-        ? user.displayName!.trim()
-        : user.email?.split('@').first ?? 'User';
+    String details = '';
+    if (e is FirebaseException) {
+      details = 'PLUGIN: ${e.plugin}\n'
+          'CODE: ${e.code}\n'
+          'MESSAGE: ${e.message}\n\n'
+          'STACK:\n${stack.toString().substring(0, 800)}';
+    } else {
+      details = 'TYPE: ${e.runtimeType}\n'
+          'ERROR: $e\n\n'
+          'STACK:\n${stack.toString().substring(0, 800)}';
+    }
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => HomeScreen(userName: name),
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Debug Error', style: TextStyle(color: Colors.red)),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            details,
+            style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
+    return;
   }
+
+  if (!mounted) return;
+  final name = user.displayName?.trim().isNotEmpty == true
+      ? user.displayName!.trim()
+      : user.email?.split('@').first ?? 'User';
+  Navigator.of(context).pushReplacement(
+    MaterialPageRoute(builder: (_) => HomeScreen(userName: name)),
+  );
+}
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
