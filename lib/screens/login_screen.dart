@@ -128,19 +128,28 @@ class _LoginScreenState extends State<LoginScreen>
   /// Coins are created only by the backend when the profile does not exist.
   /// Existing users keep their current balance.
   Future<void> _goHome(User user) async {
-  await CoinsService.ensureProfile();
-
   if (!mounted) return;
 
   final name = user.displayName?.trim().isNotEmpty == true
       ? user.displayName!.trim()
       : user.email?.split('@').first ?? 'User';
 
+  // Navigate immediately — never block login on Firestore
   Navigator.of(context).pushReplacement(
-    MaterialPageRoute(
-      builder: (_) => HomeScreen(userName: name),
-    ),
+    MaterialPageRoute(builder: (_) => HomeScreen(userName: name)),
   );
+
+  // Silently sync profile in background with retries
+  Future(() async {
+    for (int i = 0; i < 10; i++) {
+      try {
+        await CoinsService.ensureProfile();
+        return;
+      } catch (_) {
+        await Future.delayed(const Duration(seconds: 5));
+      }
+    }
+  });
 }
 
   Future<void> _submit() async {
