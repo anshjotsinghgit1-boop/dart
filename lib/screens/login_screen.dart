@@ -129,17 +129,15 @@ class _LoginScreenState extends State<LoginScreen>
   /// Existing users keep their current balance.
   Future<void> _goHome(User user) async {
   if (!mounted) return;
-
   final name = user.displayName?.trim().isNotEmpty == true
       ? user.displayName!.trim()
       : user.email?.split('@').first ?? 'User';
 
-  // Navigate immediately — never block login on Firestore
   Navigator.of(context).pushReplacement(
     MaterialPageRoute(builder: (_) => HomeScreen(userName: name)),
   );
 
-  // Silently sync profile in background with retries
+  // Sync profile in background
   Future(() async {
     for (int i = 0; i < 10; i++) {
       try {
@@ -150,8 +148,7 @@ class _LoginScreenState extends State<LoginScreen>
       }
     }
   });
-}
-
+  }
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
