@@ -138,11 +138,11 @@ class _LoginScreenState extends State<LoginScreen>
       details = 'PLUGIN: ${e.plugin}\n'
           'CODE: ${e.code}\n'
           'MESSAGE: ${e.message}\n\n'
-          'STACK:\n${stack.toString().substring(0, 800)}';
+          'STACK:\n${stack.toString()}';
     } else {
       details = 'TYPE: ${e.runtimeType}\n'
           'ERROR: $e\n\n'
-          'STACK:\n${stack.toString().substring(0, 800)}';
+          'STACK:\n${stack.toString()}';
     }
 
     await showDialog(
