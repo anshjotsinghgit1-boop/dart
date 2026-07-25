@@ -127,6 +127,8 @@ class _LoginScreenState extends State<LoginScreen>
   /// Coins are created only by the backend when the profile does not exist.
   /// Existing users keep their current balance.
   Future<void> _goHome(User user) async {
+  await CoinsService.ensureProfile();
+
   if (!mounted) return;
 
   final name = user.displayName?.trim().isNotEmpty == true
