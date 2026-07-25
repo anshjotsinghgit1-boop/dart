@@ -1,74 +1,55 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class CoinsService {
-  static final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
+  static final _firestore = FirebaseFirestore.instance;
 
-  static final FirebaseFunctions _functions =
-      FirebaseFunctions.instanceFor(
-    region: 'asia-south1',
-  );
-
-  static User get _currentUser {
+  static User get _user {
     final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      throw StateError('No authenticated user found.');
-    }
-
+    if (user == null) throw StateError('Not logged in.');
     return user;
   }
 
-  static DocumentReference<Map<String, dynamic>>
-      get _userDocument {
-    return _firestore
-        .collection('users')
-        .doc(_currentUser.uid);
-  }
+  static DocumentReference<Map<String, dynamic>> get _doc =>
+      _firestore.collection('users').doc(_user.uid);
 
-  /// Creates the user profile only if it does not already exist.
-  ///
-  /// Existing users keep their existing coin balance.
-  /// New users receive 20 free coins once.
+  /// Creates profile with 20 free coins if it doesn't exist yet.
   static Future<int> ensureProfile() async {
-    final result = await _functions
-        .httpsCallable('ensureUserProfile')
-        .call();
-
-    final data = Map<String, dynamic>.from(
-      result.data as Map,
-    );
-
-    return (data['coins'] as num?)?.toInt() ?? 0;
-  }
-
-  /// Reads the current balance from Firestore.
-  static Future<int> getCoins() async {
-    final snapshot = await _userDocument.get();
-
-    if (!snapshot.exists) {
-      return ensureProfile();
+    final snap = await _doc.get();
+    if (!snap.exists) {
+      await _doc.set({
+        'coins': 20,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return 20;
     }
-
-    final data = snapshot.data();
-
-    return (data?['coins'] as num?)?.toInt() ?? 0;
+    return (snap.data()?['coins'] as num?)?.toInt() ?? 0;
   }
 
-  /// Spends one coin atomically on the server.
-  ///
-  /// Returns false if the user has no coins.
+  /// Returns current coin balance.
+  static Future<int> getCoins() async {
+    final snap = await _doc.get();
+    if (!snap.exists) return ensureProfile();
+    return (snap.data()?['coins'] as num?)?.toInt() ?? 0;
+  }
+
+  /// Spends 1 coin. Returns false if not enough coins.
   static Future<bool> spendCoin() async {
-    final result = await _functions
-        .httpsCallable('spendCoin')
-        .call();
+    bool success = false;
+    await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(_doc);
+      final coins = (snap.data()?['coins'] as num?)?.toInt() ?? 0;
+      if (coins <= 0) { success = false; return; }
+      tx.update(_doc, {'coins': FieldValue.increment(-1)});
+      success = true;
+    });
+    return success;
+  }
 
-    final data = Map<String, dynamic>.from(
-      result.data as Map,
-    );
-
-    return data['success'] == true;
+  /// Adds coins after purchase (called locally after Play verification).
+  static Future<int> addCoins(int amount) async {
+    await _doc.update({'coins': FieldValue.increment(amount)});
+    final snap = await _doc.get();
+    return (snap.data()?['coins'] as num?)?.toInt() ?? 0;
   }
 }
