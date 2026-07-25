@@ -6,14 +6,19 @@ class CoinsService {
   static const _project = 'replyai-749f7';
   static const _base = 'https://firestore.googleapis.com/v1';
 
+  static String lastDebug = 'not called yet';
+
   static User get _user {
     final u = FirebaseAuth.instance.currentUser;
     if (u == null) throw StateError('Not logged in.');
     return u;
   }
 
-  static Future<String> _token() async =>
-      await _user.getIdToken(true) ?? '';
+  static Future<String> _token() async {
+    final t = await _user.getIdToken(true);
+    if (t == null || t.isEmpty) throw Exception('Could not get auth token');
+    return t;
+  }
 
   static String get _docUrl =>
       '$_base/projects/$_project/databases/(default)/documents/users/${_user.uid}';
@@ -32,7 +37,6 @@ class CoinsService {
     }
 
     if (res.statusCode == 404) {
-      // New user — create with 20 coins
       final create = await http.patch(
         Uri.parse(_docUrl),
         headers: {
@@ -54,8 +58,24 @@ class CoinsService {
 
   static Future<int> getCoins() async {
     try {
-      return await ensureProfile();
-    } catch (_) {
+      final token = await _token();
+      final res = await http.get(
+        Uri.parse(_docUrl),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      final bodyPreview = res.body.length > 400
+          ? res.body.substring(0, 400)
+          : res.body;
+      lastDebug = 'UID: ${_user.uid}\nHTTP ${res.statusCode}\n$bodyPreview';
+
+      if (res.statusCode == 200) {
+        final fields = (jsonDecode(res.body)['fields'] as Map?) ?? {};
+        final val = fields['coins']?['integerValue'];
+        return int.tryParse(val?.toString() ?? '0') ?? 0;
+      }
+      return 0;
+    } catch (e) {
+      lastDebug = 'EXCEPTION: $e';
       return 0;
     }
   }
@@ -71,7 +91,8 @@ class CoinsService {
 
       final fields = (jsonDecode(res.body)['fields'] as Map?) ?? {};
       final coins = int.tryParse(
-            fields['coins']?['integerValue']?.toString() ?? '0') ?? 0;
+              fields['coins']?['integerValue']?.toString() ?? '0') ??
+          0;
       if (coins <= 0) return false;
 
       final patch = await http.patch(
@@ -104,7 +125,8 @@ class CoinsService {
       if (res.statusCode == 200) {
         final fields = (jsonDecode(res.body)['fields'] as Map?) ?? {};
         current = int.tryParse(
-              fields['coins']?['integerValue']?.toString() ?? '0') ?? 0;
+                fields['coins']?['integerValue']?.toString() ?? '0') ??
+            0;
       }
 
       final newCoins = current + amount;
