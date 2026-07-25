@@ -1,53 +1,128 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 
 class CoinsService {
-  static final _firestore = FirebaseFirestore.instance;
+  static const _project = 'replyai-749f7';
+  static const _base = 'https://firestore.googleapis.com/v1';
 
   static User get _user {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw StateError('Not logged in.');
-    return user;
+    final u = FirebaseAuth.instance.currentUser;
+    if (u == null) throw StateError('Not logged in.');
+    return u;
   }
 
-  static DocumentReference<Map<String, dynamic>> get _doc =>
-      _firestore.collection('users').doc(_user.uid);
+  static Future<String> _token() async =>
+      await _user.getIdToken(true) ?? '';
 
-  /// Creates profile with 20 free coins if it doesn't exist yet.
-    static Future<int> getCoins() async {
+  static String get _docUrl =>
+      '$_base/projects/$_project/databases/(default)/documents/users/${_user.uid}';
+
+  static Future<int> ensureProfile() async {
+    final token = await _token();
+    final res = await http.get(
+      Uri.parse(_docUrl),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (res.statusCode == 200) {
+      final fields = (jsonDecode(res.body)['fields'] as Map?) ?? {};
+      final val = fields['coins']?['integerValue'];
+      return int.tryParse(val?.toString() ?? '0') ?? 0;
+    }
+
+    if (res.statusCode == 404) {
+      // New user — create with 20 coins
+      final create = await http.patch(
+        Uri.parse(_docUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'fields': {
+            'coins': {'integerValue': '20'},
+            'createdAt': {'stringValue': DateTime.now().toIso8601String()},
+          }
+        }),
+      );
+      if (create.statusCode == 200) return 20;
+    }
+
+    throw Exception('Firestore REST error ${res.statusCode}: ${res.body}');
+  }
+
+  static Future<int> getCoins() async {
     try {
-      final snap = await _doc.get();
-      if (!snap.exists) return await ensureProfile();
-      return (snap.data()?['coins'] as num?)?.toInt() ?? 0;
+      return await ensureProfile();
     } catch (_) {
-      return 0; // Firestore offline — show 0, will retry later
+      return 0;
     }
   }
 
-  /// Returns current coin balance.
-  static Future<int> getCoins() async {
-    final snap = await _doc.get();
-    if (!snap.exists) return ensureProfile();
-    return (snap.data()?['coins'] as num?)?.toInt() ?? 0;
-  }
-
-  /// Spends 1 coin. Returns false if not enough coins.
   static Future<bool> spendCoin() async {
-    bool success = false;
-    await _firestore.runTransaction((tx) async {
-      final snap = await tx.get(_doc);
-      final coins = (snap.data()?['coins'] as num?)?.toInt() ?? 0;
-      if (coins <= 0) { success = false; return; }
-      tx.update(_doc, {'coins': FieldValue.increment(-1)});
-      success = true;
-    });
-    return success;
+    try {
+      final token = await _token();
+      final res = await http.get(
+        Uri.parse(_docUrl),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (res.statusCode != 200) return false;
+
+      final fields = (jsonDecode(res.body)['fields'] as Map?) ?? {};
+      final coins = int.tryParse(
+            fields['coins']?['integerValue']?.toString() ?? '0') ?? 0;
+      if (coins <= 0) return false;
+
+      final patch = await http.patch(
+        Uri.parse('$_docUrl?updateMask.fieldPaths=coins'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'fields': {
+            'coins': {'integerValue': '${coins - 1}'},
+          }
+        }),
+      );
+      return patch.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 
-  /// Adds coins after purchase (called locally after Play verification).
   static Future<int> addCoins(int amount) async {
-    await _doc.update({'coins': FieldValue.increment(amount)});
-    final snap = await _doc.get();
-    return (snap.data()?['coins'] as num?)?.toInt() ?? 0;
+    try {
+      final token = await _token();
+      final res = await http.get(
+        Uri.parse(_docUrl),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      int current = 0;
+      if (res.statusCode == 200) {
+        final fields = (jsonDecode(res.body)['fields'] as Map?) ?? {};
+        current = int.tryParse(
+              fields['coins']?['integerValue']?.toString() ?? '0') ?? 0;
+      }
+
+      final newCoins = current + amount;
+      await http.patch(
+        Uri.parse('$_docUrl?updateMask.fieldPaths=coins'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'fields': {
+            'coins': {'integerValue': '$newCoins'},
+          }
+        }),
+      );
+      return newCoins;
+    } catch (_) {
+      return 0;
+    }
   }
 }
