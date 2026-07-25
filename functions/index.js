@@ -6,7 +6,7 @@ const { google } = require("googleapis");
 initializeApp();
 const db = getFirestore();
 
-const PACKAGE_NAME = "com.yourname.rizzguru"; // ← change this
+const PACKAGE_NAME = "com.prothon.rizzguru"; // ← change this
 const COINS_PER_TOPUP = 150;
 const COINS_PER_WEEK = 150;
 
