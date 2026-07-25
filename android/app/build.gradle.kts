@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.dart_app"
+    namespace = "com.prothon.rizzguru"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
