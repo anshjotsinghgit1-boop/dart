@@ -1,4 +1,4 @@
-package com.example.dart_app
+package com.prothon.rizzguru
 
 import io.flutter.embedding.android.FlutterActivity
 
