@@ -60,7 +60,7 @@ jobs:
             echo "====BASE64 END===="
           fi
 
-      - name: Print SHA-1 (add this to Firebase Console)
+      - name: Print SHA-1 of keystore
         run: |
           keytool -list -v \
             -keystore ~/.android/debug.keystore \
@@ -76,6 +76,13 @@ jobs:
 
       - name: Build Android APK
         run: flutter build apk --release --dart-define=AICREDITS_API_KEY=${{ secrets.AICREDITS_API_KEY }}
+
+      - name: Verify APK signing SHA-1
+        run: |
+          echo "=== SHA-1 baked INTO the APK ==="
+          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk 2>/dev/null | grep "SHA1:" || echo "keytool check failed"
+          echo "=== SHA-1 from keystore used to sign ==="
+          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep "SHA1:"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
