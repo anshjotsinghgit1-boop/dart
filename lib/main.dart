@@ -6,11 +6,9 @@ import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
   runApp(const RizzGuruApp());
 }
 
@@ -27,10 +25,9 @@ class RizzGuruApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFF0D071F),
         canvasColor: const Color(0xFF0D071F),
         primaryColor: const Color(0xFFFF5B63),
-        pageTransitionsTheme: PageTransitionsTheme(
+        pageTransitionsTheme: const PageTransitionsTheme(
           builders: {
-            TargetPlatform.android: const FadeUpwardsPageTransitionsBuilder(),
-            TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
+            TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
           },
         ),
         textTheme: ThemeData.dark().textTheme.apply(
