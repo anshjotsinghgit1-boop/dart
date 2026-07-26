@@ -53,6 +53,9 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
+      - name: Generate app icons
+        run: flutter pub run flutter_launcher_icons
+
       - name: Build Android APK
         run: flutter build apk --release --dart-define=AICREDITS_API_KEY=${{ secrets.AICREDITS_API_KEY }}
 
