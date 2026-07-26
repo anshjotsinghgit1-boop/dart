@@ -7,6 +7,13 @@ version: 1.0.0+1
 environment:
   sdk: ^3.12.2
 
+flutter_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#0D071F"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+
 dependencies:
   flutter:
     sdk: flutter
