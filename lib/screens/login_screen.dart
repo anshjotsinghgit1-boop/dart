@@ -25,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen>
   bool _isLoading = false;
   bool _googleLoad = false;
   bool _obscure = true;
+  String _googleDebug = '';
 
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
@@ -249,8 +250,9 @@ class _LoginScreenState extends State<LoginScreen>
       await _goHome(user);
     } on FirebaseAuthException catch (e) {
       _showSnack(_friendlyError(e.code));
-        } catch (e) {
-      _showSnack('DEBUG Google: ${e.runtimeType}: $e');
+            } catch (e) {
+      final msg = '${e.runtimeType}: $e';
+      if (mounted) setState(() => _googleDebug = msg);
     } finally {
       if (mounted) {
         setState(() {
@@ -434,7 +436,24 @@ class _LoginScreenState extends State<LoginScreen>
 
                     const SizedBox(height: 24),
 
-                    _buildGoogleButton(),
+                                        _buildGoogleButton(),
+
+                    if (_googleDebug.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        color: Colors.black,
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(8),
+                        child: SelectableText(
+                          _googleDebug,
+                          style: const TextStyle(
+                            color: Colors.yellow,
+                            fontSize: 10,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 32),
 
