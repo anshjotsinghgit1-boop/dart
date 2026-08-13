@@ -79,9 +79,10 @@ jobs:
 
       - name: Verify APK signing SHA-1
         run: |
-          echo "=== SHA-1 baked INTO the APK ==="
-          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk 2>/dev/null | grep "SHA1:" || echo "keytool check failed"
-          echo "=== SHA-1 from keystore used to sign ==="
+          echo "=== SHA-1 baked INTO the APK (apksigner) ==="
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name "apksigner" | sort -r | head -1)
+          $APKSIGNER verify --print-certs build/app/outputs/flutter-apk/app-release.apk | grep -i "SHA-1"
+          echo "=== SHA-1 from keystore ==="
           keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep "SHA1:"
 
       - name: Upload APK artifact
