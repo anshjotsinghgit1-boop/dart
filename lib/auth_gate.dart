@@ -49,12 +49,21 @@ class _SubscriptionGateState extends State<_SubscriptionGate> {
   }
 
   Future<void> _check() async {
-    final active = await SubscriptionService.hasActiveSubscription();
-    if (!mounted) return;
-    setState(() {
-      _hasSubscription = active;
-      _checking = false;
-    });
+    try {
+      final active = await SubscriptionService.hasActiveSubscription();
+      if (!mounted) return;
+      setState(() {
+        _hasSubscription = active;
+        _checking = false;
+      });
+    } catch (_) {
+      // On any error — always show paywall, never grant free access
+      if (!mounted) return;
+      setState(() {
+        _hasSubscription = false;
+        _checking = false;
+      });
+    }
   }
 
   @override
