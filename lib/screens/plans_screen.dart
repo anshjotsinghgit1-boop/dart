@@ -4,7 +4,13 @@ import '../services/coins_service.dart';
 import '../services/google_play_billing_service.dart';
 
 class PlansScreen extends StatefulWidget {
-  const PlansScreen({super.key});
+  final bool isPaywall;
+  final VoidCallback? onSubscribed;
+  const PlansScreen({
+    super.key,
+    this.isPaywall = false,
+    this.onSubscribed,
+  });
 
   @override
   State<PlansScreen> createState() => _PlansScreenState();
@@ -140,6 +146,11 @@ class _PlansScreenState extends State<PlansScreen> {
       _purchasingIndex = null;
     });
 
+    if (purchasedPlan != null &&
+      purchasedPlan['id'] == GooglePlayBillingService.weeklyProductId) {
+    widget.onSubscribed?.call();
+    return;
+      
     if (purchasedPlan != null) {
       _showSuccessDialog(
         coinsAdded: purchasedPlan['coins'] as int,
