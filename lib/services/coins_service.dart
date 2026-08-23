@@ -45,7 +45,7 @@ class CoinsService {
         },
         body: jsonEncode({
           'fields': {
-            'coins': {'integerValue': '20'},
+            'coins': {'integerValue': '0'},
             'createdAt': {'stringValue': DateTime.now().toIso8601String()},
           }
         }),
