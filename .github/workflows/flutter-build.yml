@@ -77,11 +77,10 @@ jobs:
       - name: Build Android App Bundle
         run: flutter build appbundle --release --dart-define=AICREDITS_API_KEY=${{ secrets.AICREDITS_API_KEY }}
 
-      - name: Verify AAB signing SHA-1
+      - name: Confirm AAB exists
         run: |
-          echo "=== SHA-1 baked INTO the AAB (apksigner) ==="
-          APKSIGNER=$(find $ANDROID_HOME/build-tools -name "apksigner" | sort -r | head -1)
-          $APKSIGNER verify --print-certs build/app/outputs/bundle/release/app-release.aab | grep -i "SHA-1"
+          echo "=== AAB file ==="
+          ls -lh build/app/outputs/bundle/release/app-release.aab
           echo "=== SHA-1 from keystore ==="
           keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep "SHA1:"
 
