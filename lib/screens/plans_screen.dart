@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/coins_service.dart';
@@ -6,6 +7,7 @@ import '../services/google_play_billing_service.dart';
 class PlansScreen extends StatefulWidget {
   final bool isPaywall;
   final VoidCallback? onSubscribed;
+
   const PlansScreen({
     super.key,
     this.isPaywall = false,
@@ -133,6 +135,7 @@ class _PlansScreenState extends State<PlansScreen> {
     });
   }
 
+  // ✅ FIXED — proper brace structure, both branches reachable
   Future<void> _handleCoinsUpdated(int coins) async {
     if (!mounted) return;
 
@@ -146,11 +149,14 @@ class _PlansScreenState extends State<PlansScreen> {
       _purchasingIndex = null;
     });
 
+    // If weekly plan purchased and we're in paywall mode, unlock the app
     if (purchasedPlan != null &&
-      purchasedPlan['id'] == GooglePlayBillingService.weeklyProductId) {
-    widget.onSubscribed?.call();
-    return;
-      
+        purchasedPlan['id'] == GooglePlayBillingService.weeklyProductId) {
+      widget.onSubscribed?.call();
+      return;
+    }
+
+    // Otherwise show success dialog (for top-up purchases)
     if (purchasedPlan != null) {
       _showSuccessDialog(
         coinsAdded: purchasedPlan['coins'] as int,
@@ -242,9 +248,7 @@ class _PlansScreenState extends State<PlansScreen> {
               ),
               const SizedBox(height: 18),
               Text(
-                isSubscription
-                    ? 'Weekly Plan Activated'
-                    : 'Coins Added',
+                isSubscription ? 'Weekly Plan Activated' : 'Coins Added',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,
@@ -281,9 +285,7 @@ class _PlansScreenState extends State<PlansScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFF5B63),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -348,12 +350,7 @@ class _PlansScreenState extends State<PlansScreen> {
                     physics: const AlwaysScrollableScrollPhysics(
                       parent: BouncingScrollPhysics(),
                     ),
-                    padding: const EdgeInsets.fromLTRB(
-                      20,
-                      12,
-                      20,
-                      30,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -366,17 +363,31 @@ class _PlansScreenState extends State<PlansScreen> {
                         ...List.generate(
                           _plans.length,
                           (index) => Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: 14,
-                            ),
-                            child: _buildPlanCard(
-                              index,
-                              _plans[index],
-                            ),
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: _buildPlanCard(index, _plans[index]),
                           ),
                         ),
                         const SizedBox(height: 8),
                         _buildFooterNote(),
+                        // ✅ Sign-out escape hatch (paywall only)
+                        if (widget.isPaywall) ...[
+                          const SizedBox(height: 16),
+                          Center(
+                            child: TextButton(
+                              onPressed: () async {
+                                await FirebaseAuth.instance.signOut();
+                              },
+                              child: const Text(
+                                'Sign out',
+                                style: TextStyle(
+                                  color: Color(0xFF8A8AAA),
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
                       ],
                     ),
                   ),
@@ -389,21 +400,23 @@ class _PlansScreenState extends State<PlansScreen> {
     );
   }
 
+  // ✅ FIXED — hides back button when used as paywall
   Widget _buildTopBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 20, 0),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            icon: const Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: Colors.white,
-              size: 20,
+          if (!widget.isPaywall)
+            IconButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
-          ),
           const Expanded(
             child: Text(
               'Get More Coins',
@@ -415,10 +428,7 @@ class _PlansScreenState extends State<PlansScreen> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 8,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.07),
               borderRadius: BorderRadius.circular(12),
@@ -524,9 +534,7 @@ class _PlansScreenState extends State<PlansScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _isLoadingCoins
-                      ? 'Loading...'
-                      : '$_currentCoins coins',
+                  _isLoadingCoins ? 'Loading...' : '$_currentCoins coins',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 21,
@@ -569,10 +577,7 @@ class _PlansScreenState extends State<PlansScreen> {
     );
   }
 
-  Widget _buildPlanCard(
-    int index,
-    Map<String, dynamic> plan,
-  ) {
+  Widget _buildPlanCard(int index, Map<String, dynamic> plan) {
     final productId = plan['id'] as String;
     final coins = plan['coins'] as int;
     final label = plan['label'] as String;
@@ -580,14 +585,12 @@ class _PlansScreenState extends State<PlansScreen> {
     final description = plan['description'] as String;
     final badge = plan['badge'] as String;
     final isSubscription = plan['subscription'] as bool;
-    final gradientColors =
-        (plan['gradient'] as List<Color>);
+    final gradientColors = plan['gradient'] as List<Color>;
 
-    final isThisPlanPurchasing =
-        _purchasing && _purchasingIndex == index;
+    final isThisPlanPurchasing = _purchasing && _purchasingIndex == index;
 
     final price = _billing.price(productId) ??
-        (isSubscription ? '₹150/week' : '₹100');
+        (isSubscription ? '₹140/week' : '₹100');
 
     return GestureDetector(
       onTap: _purchasing || _isInitializingBilling
@@ -595,9 +598,7 @@ class _PlansScreenState extends State<PlansScreen> {
           : () => _purchase(index, plan),
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 180),
-        opacity: _purchasing && !isThisPlanPurchasing
-            ? 0.55
-            : 1,
+        opacity: _purchasing && !isThisPlanPurchasing ? 0.55 : 1,
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -624,9 +625,7 @@ class _PlansScreenState extends State<PlansScreen> {
                 width: 58,
                 height: 58,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: gradientColors,
-                  ),
+                  gradient: LinearGradient(colors: gradientColors),
                   borderRadius: BorderRadius.circular(17),
                 ),
                 child: Center(
@@ -665,9 +664,7 @@ class _PlansScreenState extends State<PlansScreen> {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: gradientColors,
-                            ),
+                            gradient: LinearGradient(colors: gradientColors),
                             borderRadius: BorderRadius.circular(7),
                           ),
                           child: Text(
@@ -729,23 +726,16 @@ class _PlansScreenState extends State<PlansScreen> {
         child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2.2,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              colors.first,
-            ),
+            valueColor: AlwaysStoppedAnimation<Color>(colors.first),
           ),
         ),
       );
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 13,
-        vertical: 10,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: colors,
-        ),
+        gradient: LinearGradient(colors: colors),
         borderRadius: BorderRadius.circular(13),
       ),
       child: Text(
