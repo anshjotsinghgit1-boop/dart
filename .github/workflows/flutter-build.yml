@@ -1,4 +1,4 @@
-name: Build Flutter Android AAB
+name: Build Flutter Android APK + AAB
 
 on:
   workflow_dispatch:
@@ -74,15 +74,26 @@ jobs:
       - name: Generate app icons
         run: flutter pub run flutter_launcher_icons
 
-      - name: Build Android App Bundle
+      - name: Build APK (for testing on phone)
+        run: flutter build apk --release --dart-define=AICREDITS_API_KEY=${{ secrets.AICREDITS_API_KEY }}
+
+      - name: Build AAB (for Play Store)
         run: flutter build appbundle --release --dart-define=AICREDITS_API_KEY=${{ secrets.AICREDITS_API_KEY }}
 
-      - name: Confirm AAB exists
+      - name: Confirm outputs exist
         run: |
-          echo "=== AAB file ==="
+          echo "=== APK ==="
+          ls -lh build/app/outputs/flutter-apk/app-release.apk
+          echo "=== AAB ==="
           ls -lh build/app/outputs/bundle/release/app-release.aab
           echo "=== SHA-1 from keystore ==="
           keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep "SHA1:"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
