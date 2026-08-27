@@ -1,8 +1,20 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+
+require(keystorePropertiesFile.exists()) {
+    "Missing android/key.properties. Release signing is not configured."
+}
+
+keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 
 android {
     namespace = "com.prothon.rizzguru"
@@ -16,10 +28,19 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("${System.getenv("HOME")}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            storeFile = file(
+                keystoreProperties.getProperty("storeFile")
+                    ?: error("storeFile is missing")
+            )
+
+            storePassword = keystoreProperties.getProperty("storePassword")
+                ?: error("storePassword is missing")
+
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+                ?: error("keyAlias is missing")
+
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+                ?: error("keyPassword is missing")
         }
     }
 
