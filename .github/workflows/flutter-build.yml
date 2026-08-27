@@ -2,12 +2,13 @@ name: Build Flutter Android APK + AAB
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -25,48 +26,68 @@ jobs:
       - name: Write google-services.json
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+        run: |
+          set -euo pipefail
+
+          test -n "$GOOGLE_SERVICES_JSON"
+
+          printf '%s' "$GOOGLE_SERVICES_JSON" \
+            > android/app/google-services.json
 
       - name: Verify google-services.json
         run: |
-          echo "=== Package names in google-services.json ==="
+          set -euo pipefail
+
+          test -s android/app/google-services.json
+
+          echo "=== Package names ==="
           grep "package_name" android/app/google-services.json
-          echo "=== App IDs in google-services.json ==="
+
+          echo "=== Firebase app IDs ==="
           grep "mobilesdk_app_id" android/app/google-services.json
 
-      - name: Set up keystore
+      - name: Restore release upload keystore
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          mkdir -p ~/.android
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
-            echo "✅ Restored keystore from secret — SHA-1 will be consistent"
-          else
-            keytool -genkey -v \
-              -keystore ~/.android/debug.keystore \
-              -alias androiddebugkey \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass android \
-              -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US"
-            echo ""
-            echo "⚠️  KEYSTORE_BASE64 secret not set yet."
-            echo "👇  Copy ALL the base64 text below and save it as a GitHub Secret named KEYSTORE_BASE64"
-            echo "====BASE64 START===="
-            base64 ~/.android/debug.keystore
-            echo "====BASE64 END===="
-          fi
+          set -euo pipefail
 
-      - name: Print SHA-1 of keystore
+          test -n "$UPLOAD_KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+
+          printf '%s' "$UPLOAD_KEYSTORE_BASE64" \
+            | base64 --decode > android/app/upload-keystore.jks
+
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+
+          chmod 600 \
+            android/key.properties \
+            android/app/upload-keystore.jks
+
+      - name: Verify release keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          keytool -list -v \
-            -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey \
-            -storepass android \
-            -keypass android | grep SHA1
+          set -euo pipefail
+
+          keytool -list \
+            -keystore android/app/upload-keystore.jks \
+            -alias "$KEY_ALIAS" \
+            -storepass "$KEYSTORE_PASSWORD" \
+            > /dev/null
+
+          echo "Release upload keystore loaded successfully."
 
       - name: Get Flutter dependencies
         run: flutter pub get
@@ -74,29 +95,61 @@ jobs:
       - name: Generate app icons
         run: flutter pub run flutter_launcher_icons
 
-      - name: Build APK (for testing on phone)
-        run: flutter build apk --release --dart-define=AICREDITS_API_KEY=${{ secrets.AICREDITS_API_KEY }}
-
-      - name: Build AAB (for Play Store)
-        run: flutter build appbundle --release --dart-define=AICREDITS_API_KEY=${{ secrets.AICREDITS_API_KEY }}
-
-      - name: Confirm outputs exist
+      - name: Build release APK
+        env:
+          AICREDITS_API_KEY: ${{ secrets.AICREDITS_API_KEY }}
         run: |
-          echo "=== APK ==="
-          ls -lh build/app/outputs/flutter-apk/app-release.apk
-          echo "=== AAB ==="
-          ls -lh build/app/outputs/bundle/release/app-release.aab
-          echo "=== SHA-1 from keystore ==="
-          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep "SHA1:"
+          set -euo pipefail
 
-      - name: Upload APK artifact
+          test -n "$AICREDITS_API_KEY"
+
+          flutter build apk \
+            --release \
+            --dart-define="AICREDITS_API_KEY=$AICREDITS_API_KEY"
+
+      - name: Build release AAB
+        env:
+          AICREDITS_API_KEY: ${{ secrets.AICREDITS_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          test -n "$AICREDITS_API_KEY"
+
+          flutter build appbundle \
+            --release \
+            --dart-define="AICREDITS_API_KEY=$AICREDITS_API_KEY"
+
+      - name: Confirm release files exist
+        run: |
+          set -euo pipefail
+
+          test -s build/app/outputs/flutter-apk/app-release.apk
+          test -s build/app/outputs/bundle/release/app-release.aab
+
+          echo "Release APK created:"
+          ls -lh build/app/outputs/flutter-apk/app-release.apk
+
+          echo "Release AAB created:"
+          ls -lh build/app/outputs/bundle/release/app-release.aab
+
+      - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Upload AAB artifact
+      - name: Upload release AAB
         uses: actions/upload-artifact@v4
         with:
           name: app-release-aab
           path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove temporary signing files
+        if: always()
+        run: |
+          rm -f android/key.properties
+          rm -f android/app/upload-keystore.jks
