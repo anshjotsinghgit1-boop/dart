@@ -15,11 +15,19 @@
       },
       "oauth_client": [
         {
-          "client_id": "396369034947-lmqgmdjn2o5edarmd6rmjdq7n2vfqki5.apps.googleusercontent.com",
+          "client_id": "396369034947-62mcbe2d7trvkf5mq7s59anj63onn5d7.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.prothon.rizzguru",
-            "certificate_hash": "cf619cd2fc9cd25809649f1089f2deeeb7cc349a"
+            "certificate_hash": "c5dd68045dbddfd30db5edc6080c3305aedfd321"
+          }
+        },
+        {
+          "client_id": "396369034947-bsu4en3nohvj14f0jtjofvd4d3bvq9o7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.prothon.rizzguru",
+            "certificate_hash": "37a247e0b19a3684351c2eca1044b5eb994fd0ee"
           }
         },
         {
