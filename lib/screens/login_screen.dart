@@ -25,7 +25,6 @@ class _LoginScreenState extends State<LoginScreen>
   bool _isLoading = false;
   bool _googleLoad = false;
   bool _obscure = true;
-  String _googleDebug = '';
 
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
@@ -83,6 +82,7 @@ class _LoginScreenState extends State<LoginScreen>
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -129,27 +129,28 @@ class _LoginScreenState extends State<LoginScreen>
   /// Coins are created only by the backend when the profile does not exist.
   /// Existing users keep their current balance.
   Future<void> _goHome(User user) async {
-  if (!mounted) return;
-  final name = user.displayName?.trim().isNotEmpty == true
-      ? user.displayName!.trim()
-      : user.email?.split('@').first ?? 'User';
+    if (!mounted) return;
+    final name = user.displayName?.trim().isNotEmpty == true
+        ? user.displayName!.trim()
+        : user.email?.split('@').first ?? 'User';
 
-  Navigator.of(context).pushReplacement(
-    MaterialPageRoute(builder: (_) => HomeScreen(userName: name)),
-  );
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => HomeScreen(userName: name)),
+    );
 
-  // Sync profile in background
-  Future(() async {
-    for (int i = 0; i < 10; i++) {
-      try {
-        await CoinsService.ensureProfile();
-        return;
-      } catch (_) {
-        await Future.delayed(const Duration(seconds: 5));
+    // Sync profile in background
+    Future(() async {
+      for (int i = 0; i < 10; i++) {
+        try {
+          await CoinsService.ensureProfile();
+          return;
+        } catch (_) {
+          await Future.delayed(const Duration(seconds: 5));
+        }
       }
-    }
-  });
+    });
   }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -204,7 +205,7 @@ class _LoginScreenState extends State<LoginScreen>
     } on FirebaseAuthException catch (e) {
       _showSnack(_friendlyError(e.code));
     } catch (e) {
-      _showSnack('Error: ${e.toString()}');
+      _showSnack('An error occurred. Please try again.');
     } finally {
       if (mounted) {
         setState(() {
@@ -223,8 +224,9 @@ class _LoginScreenState extends State<LoginScreen>
 
     try {
       final googleUser = await GoogleSignIn(
-  serverClientId: '396369034947-41ol9tvb11ki7thi01d6t64ind9lngqh.apps.googleusercontent.com',
-).signIn();
+        serverClientId:
+            '396369034947-41ol9tvb11ki7thi01d6t64ind9lngqh.apps.googleusercontent.com',
+      ).signIn();
 
       if (googleUser == null) {
         return;
@@ -250,9 +252,8 @@ class _LoginScreenState extends State<LoginScreen>
       await _goHome(user);
     } on FirebaseAuthException catch (e) {
       _showSnack(_friendlyError(e.code));
-            } catch (e) {
-      final msg = '${e.runtimeType}: $e';
-      if (mounted) setState(() => _googleDebug = msg);
+    } catch (e) {
+      _showSnack('Google sign-in failed. Please try again.');
     } finally {
       if (mounted) {
         setState(() {
@@ -288,179 +289,165 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      resizeToAvoidBottomInset: true,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF0D071F),
-              Color(0xFF1A0A35),
-              Color(0xFF0C0E21),
-            ],
+    return WillPopScope(
+      onWillPop: () async => !_isLoading && !_googleLoad,
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF0D071F),
+                Color(0xFF1A0A35),
+                Color(0xFF0C0E21),
+              ],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnim,
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 20,
-              ),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    const SizedBox(height: 20),
+          child: SafeArea(
+            child: FadeTransition(
+              opacity: _fadeAnim,
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 20),
 
-                    _buildLogo(),
+                      _buildLogo(),
 
-                    const SizedBox(height: 36),
+                      const SizedBox(height: 36),
 
-                    _buildToggle(),
+                      _buildToggle(),
 
-                    const SizedBox(height: 28),
+                      const SizedBox(height: 28),
 
-                    if (!_isLogin) ...[
+                      if (!_isLogin) ...[
+                        _buildField(
+                          _nameCtrl,
+                          'Full Name',
+                          Icons.person_outline_rounded,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Enter your name';
+                            }
+
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
                       _buildField(
-                        _nameCtrl,
-                        'Full Name',
-                        Icons.person_outline_rounded,
+                        _emailCtrl,
+                        'Email Address',
+                        Icons.mail_outline_rounded,
+                        type: TextInputType.emailAddress,
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Enter your name';
+                            return 'Enter email';
+                          }
+
+                          if (!value.contains('@')) {
+                            return 'Enter a valid email';
                           }
 
                           return null;
                         },
                       ),
-                      const SizedBox(height: 16),
-                    ],
 
-                    _buildField(
-                      _emailCtrl,
-                      'Email Address',
-                      Icons.mail_outline_rounded,
-                      type: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Enter email';
-                        }
-
-                        if (!value.contains('@')) {
-                          return 'Enter a valid email';
-                        }
-
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    _buildField(
-                      _passCtrl,
-                      'Password',
-                      Icons.lock_outline_rounded,
-                      obscure: _obscure,
-                      suffix: IconButton(
-                        icon: Icon(
-                          _obscure
-                              ? Icons.visibility_off_rounded
-                              : Icons.visibility_rounded,
-                          color: const Color(0xFF8A8AAA),
-                          size: 20,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscure = !_obscure;
-                          });
-                        },
-                      ),
-                      validator: (value) {
-                        if (value == null || value.length < 6) {
-                          return 'Min 6 characters';
-                        }
-
-                        return null;
-                      },
-                    ),
-
-                    if (!_isLogin) ...[
                       const SizedBox(height: 16),
 
                       _buildField(
-                        _confirmCtrl,
-                        'Confirm Password',
-                        Icons.lock_reset_outlined,
-                        obscure: true,
+                        _passCtrl,
+                        'Password',
+                        Icons.lock_outline_rounded,
+                        obscure: _obscure,
+                        suffix: IconButton(
+                          icon: Icon(
+                            _obscure
+                                ? Icons.visibility_off_rounded
+                                : Icons.visibility_rounded,
+                            color: const Color(0xFF8A8AAA),
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscure = !_obscure;
+                            });
+                          },
+                        ),
                         validator: (value) {
-                          if (value != _passCtrl.text) {
-                            return "Passwords don't match";
+                          if (value == null || value.length < 6) {
+                            return 'Min 6 characters';
                           }
 
                           return null;
                         },
                       ),
-                    ],
 
-                    if (_isLogin) ...[
-                      const SizedBox(height: 10),
+                      if (!_isLogin) ...[
+                        const SizedBox(height: 16),
 
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: _forgotPassword,
-                          child: const Text(
-                            'Forgot Password?',
-                            style: TextStyle(
-                              color: Color(0xFFFF5B63),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
+                        _buildField(
+                          _confirmCtrl,
+                          'Confirm Password',
+                          Icons.lock_reset_outlined,
+                          obscure: true,
+                          validator: (value) {
+                            if (value != _passCtrl.text) {
+                              return "Passwords don't match";
+                            }
+
+                            return null;
+                          },
+                        ),
+                      ],
+
+                      if (_isLogin) ...[
+                        const SizedBox(height: 10),
+
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: GestureDetector(
+                            onTap: _forgotPassword,
+                            child: const Text(
+                              'Forgot Password?',
+                              style: TextStyle(
+                                color: Color(0xFFFF5B63),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
+
+                      const SizedBox(height: 28),
+
+                      _buildSubmitButton(),
+
+                      const SizedBox(height: 24),
+
+                      _buildDivider(),
+
+                      const SizedBox(height: 24),
+
+                      _buildGoogleButton(),
+
+                      const SizedBox(height: 32),
+
+                      _buildSwitchRow(),
+
+                      const SizedBox(height: 20),
                     ],
-
-                    const SizedBox(height: 28),
-
-                    _buildSubmitButton(),
-
-                    const SizedBox(height: 24),
-
-                    _buildDivider(),
-
-                    const SizedBox(height: 24),
-
-                                        _buildGoogleButton(),
-
-                    if (_googleDebug.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        color: Colors.black,
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(8),
-                        child: SelectableText(
-                          _googleDebug,
-                          style: const TextStyle(
-                            color: Colors.yellow,
-                            fontSize: 10,
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 32),
-
-                    _buildSwitchRow(),
-
-                    const SizedBox(height: 20),
-                  ],
+                  ),
                 ),
               ),
             ),
