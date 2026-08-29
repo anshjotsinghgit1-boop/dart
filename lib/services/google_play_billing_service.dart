@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:crypto/crypto.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -14,24 +12,34 @@ class GooglePlayBillingService {
   static const String functionsRegion = 'asia-south1';
 
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: functionsRegion,
+  );
 
-  final void Function(int coins)? onCoinsUpdated;
+  final void Function(String productId, int coins)? onPurchaseCompleted;
   final void Function(String message)? onError;
   final void Function(String productId)? onPurchaseStarted;
+  final VoidCallback? onPurchasePending;
+  final VoidCallback? onPurchaseCancelled;
 
   StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
   final Map<String, ProductDetails> _products = {};
+  bool _initialized = false;
 
   GooglePlayBillingService({
-    this.onCoinsUpdated,
+    this.onPurchaseCompleted,
     this.onError,
     this.onPurchaseStarted,
+    this.onPurchasePending,
+    this.onPurchaseCancelled,
   });
 
   bool get _isAndroid =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   Future<void> initialize() async {
+    if (_initialized) return;
+
     if (!_isAndroid) {
       onError?.call('Google Play Billing is available only on Android.');
       return;
@@ -64,17 +72,20 @@ class GooglePlayBillingService {
 
     if (response.notFoundIDs.isNotEmpty) {
       onError?.call(
-        'Products not found in Google Play Console: '
-        '${response.notFoundIDs.join(', ')}',
+        'Products not found in Google Play Console: ' +
+        response.notFoundIDs.join(', '),
       );
     }
 
     for (final product in response.productDetails) {
       _products[product.id] = product;
     }
+
+    _initialized = true;
   }
 
   ProductDetails? product(String productId) => _products[productId];
+
   String? price(String productId) => _products[productId]?.price;
 
   Future<void> buyTopUp() async {
@@ -85,7 +96,15 @@ class GooglePlayBillingService {
     await _buy(weeklyProductId, consumable: false);
   }
 
-  Future<void> _buy(String productId, {required bool consumable}) async {
+  Future<void> restorePurchases() async {
+    if (!_isAndroid) return;
+    await _inAppPurchase.restorePurchases();
+  }
+
+  Future<void> _buy(
+    String productId, {
+    required bool consumable,
+  }) async {
     final productDetails = _products[productId];
 
     if (productDetails == null) {
@@ -93,28 +112,29 @@ class GooglePlayBillingService {
       return;
     }
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
+    if (FirebaseAuth.instance.currentUser == null) {
       onError?.call('Please log in before purchasing.');
       return;
     }
 
     onPurchaseStarted?.call(productId);
 
-    final PurchaseParam purchaseParam;
+    final purchaseParam = _isAndroid &&
+            productDetails is GooglePlayProductDetails
+        ? GooglePlayPurchaseParam(productDetails: productDetails)
+        : PurchaseParam(productDetails: productDetails);
 
-    if (_isAndroid && productDetails is GooglePlayProductDetails) {
-      purchaseParam = GooglePlayPurchaseParam(
-        productDetails: productDetails,
-      );
-    } else {
-      purchaseParam = PurchaseParam(productDetails: productDetails);
-    }
+    final started = consumable
+        ? await _inAppPurchase.buyConsumable(
+            purchaseParam: purchaseParam,
+            autoConsume: false,
+          )
+        : await _inAppPurchase.buyNonConsumable(
+            purchaseParam: purchaseParam,
+          );
 
-    if (consumable) {
-      await _inAppPurchase.buyConsumable(purchaseParam: purchaseParam);
-    } else {
-      await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
+    if (!started) {
+      onError?.call('Google Play could not start the purchase.');
     }
   }
 
@@ -124,72 +144,63 @@ class GooglePlayBillingService {
     for (final purchase in purchases) {
       switch (purchase.status) {
         case PurchaseStatus.pending:
-          break;
-
+          onPurchasePending?.call();
+          continue;
+        case PurchaseStatus.canceled:
+          onPurchaseCancelled?.call();
+          continue;
+        case PurchaseStatus.error:
+          onError?.call(
+            purchase.error?.message ?? 'Google Play purchase failed.',
+          );
+          continue;
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
           await _verifyWithServer(purchase);
-          break;
-
-        case PurchaseStatus.error:
-          onError?.call(
-            purchase.error?.message ?? 'An unknown purchase error occurred.',
-          );
-          if (purchase.pendingCompletePurchase) {
-            await _inAppPurchase.completePurchase(purchase);
-          }
-          break;
-
-        case PurchaseStatus.canceled:
-          break;
+          continue;
       }
     }
   }
 
   Future<void> _verifyWithServer(PurchaseDetails purchase) async {
+    final purchaseToken =
+        purchase.verificationData.serverVerificationData;
+
+    if (purchaseToken.isEmpty) {
+      onError?.call('Google Play returned an empty purchase token.');
+      return;
+    }
+
     try {
-      int coins = 0;
+      final result = await _functions
+          .httpsCallable('verifyGooglePlayPurchase')
+          .call({
+        'productId': purchase.productID,
+        'purchaseToken': purchaseToken,
+      });
 
-      if (purchase.productID == weeklyProductId) {
-        coins = 150;
-      } else if (purchase.productID == topUpProductId) {
-        coins = 150;
-      }
-
-      if (coins > 0) {
-        await _addCoinsDirectly(coins);
-      }
+      final data = Map<String, dynamic>.from(result.data as Map);
+      final coins = (data['coins'] as num?)?.toInt();
 
       if (purchase.pendingCompletePurchase) {
         await _inAppPurchase.completePurchase(purchase);
       }
-    } catch (error) {
-      onError?.call('Could not complete purchase. Try again.');
+
+      if (coins != null) {
+        onPurchaseCompleted?.call(purchase.productID, coins);
+      }
+    } on FirebaseFunctionsException catch (error) {
+      onError?.call(
+        error.message ?? 'The purchase could not be verified.',
+      );
+    } catch (_) {
+      onError?.call('The purchase could not be verified.');
     }
-  }
-
-  Future<void> _addCoinsDirectly(int coins) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .update({
-      'coins': FieldValue.increment(coins),
-    });
-
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-
-    final updatedCoins = (snap.data()?['coins'] as num?)?.toInt() ?? 0;
-    onCoinsUpdated?.call(updatedCoins);
   }
 
   Future<void> dispose() async {
     await _purchaseSubscription?.cancel();
     _purchaseSubscription = null;
+    _initialized = false;
   }
 }

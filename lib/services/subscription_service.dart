@@ -1,47 +1,20 @@
-import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
+import 'package:cloud_functions/cloud_functions.dart';
 
 class SubscriptionService {
-  static const _projectId = 'replyai-749f7';
-  static const _database = 'databaseforrizzaj';
+  static const String functionsRegion = 'asia-south1';
+
+  static final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: functionsRegion,
+  );
 
   static Future<bool> hasActiveSubscription() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return false;
-
     try {
-      final token = await user.getIdToken();
-      final url =
-          'https://firestore.googleapis.com/v1/projects/$_projectId/databases/$_database/documents/users/${user.uid}';
+      final result = await _functions
+          .httpsCallable('getSubscriptionStatus')
+          .call();
 
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
-      if (response.statusCode != 200) return false;
-
-      final data = jsonDecode(response.body);
-      final fields = data['fields'] as Map<String, dynamic>?;
-      if (fields == null) return false;
-
-      final activeField = fields['subscriptionActive'];
-      final isActive = activeField?['booleanValue'] == true;
-      if (!isActive) return false;
-
-      final expiresField = fields['subscriptionExpiresAt'];
-      if (expiresField != null) {
-        final expiresStr = expiresField['timestampValue'] as String?;
-        if (expiresStr != null) {
-          final expires = DateTime.tryParse(expiresStr);
-          if (expires != null && DateTime.now().isAfter(expires)) {
-            return false;
-          }
-        }
-      }
-
-      return true;
+      final data = Map<String, dynamic>.from(result.data as Map);
+      return data['active'] == true;
     } catch (_) {
       return false;
     }

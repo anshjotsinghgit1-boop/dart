@@ -602,7 +602,7 @@ class _PlansScreenState extends State<PlansScreen> {
     final badge = plan['badge'] as String;
     final gradientColors = plan['gradient'] as List<Color>;
     final isThisPlanPurchasing = _purchasing && _purchasingIndex == index;
-    final price = _billing.price(productId) ?? (plan['subscription'] as bool ? '₹140/week' : '₹100');
+    final price = _billing.price(productId) ?? (plan['subscription'] as bool ? '₹150/week' : '₹100');
     final disabled = _purchasing || _isInitializingBilling;
 
     return AnimatedOpacity(
