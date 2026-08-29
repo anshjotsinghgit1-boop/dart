@@ -61,9 +61,11 @@ class _PlansScreenState extends State<PlansScreen> {
     super.initState();
 
     _billing = GooglePlayBillingService(
-      onCoinsUpdated: _handleCoinsUpdated,
+      onPurchaseCompleted: _handlePurchaseCompleted,
       onError: _handleBillingError,
       onPurchaseStarted: _handlePurchaseStarted,
+      onPurchasePending: _handlePurchasePending,
+      onPurchaseCancelled: _handlePurchaseCancelled,
     );
 
     _loadCoins();
@@ -135,36 +137,40 @@ class _PlansScreenState extends State<PlansScreen> {
     });
   }
 
-  // ✅ FIXED — proper brace structure, both branches reachable
-  Future<void> _handleCoinsUpdated(int coins) async {
+  Future<void> _handlePurchaseCompleted(String productId, int coins) async {
     if (!mounted) return;
-
-    final purchasedPlan = _purchasingIndex == null
-        ? null
-        : _plans[_purchasingIndex!];
-
+    final purchasedPlan = _plans.cast<Map<String, dynamic>?>().firstWhere(
+      (plan) => plan?['id'] == productId,
+      orElse: () => null,
+    );
     setState(() {
       _currentCoins = coins;
       _purchasing = false;
       _purchasingIndex = null;
     });
-
-    // If weekly plan purchased and we're in paywall mode, unlock the app
-    if (purchasedPlan != null &&
-        purchasedPlan['id'] == GooglePlayBillingService.weeklyProductId) {
+    if (productId == GooglePlayBillingService.weeklyProductId) {
       widget.onSubscribed?.call();
       return;
     }
-
-    // Otherwise show success dialog (for top-up purchases)
     if (purchasedPlan != null) {
       _showSuccessDialog(
         coinsAdded: purchasedPlan['coins'] as int,
         isSubscription: purchasedPlan['subscription'] as bool,
       );
-    } else {
-      await _loadCoins();
     }
+  }
+
+  void _handlePurchasePending() {
+    if (mounted) _showSnack('Purchase is pending approval. Your balance will update when it completes.');
+  }
+
+  void _handlePurchaseCancelled() {
+    if (!mounted) return;
+    setState(() {
+      _purchasing = false;
+      _purchasingIndex = null;
+    });
+    _showSnack('Purchase cancelled.');
   }
 
   void _handleBillingError(String message) {
@@ -176,6 +182,16 @@ class _PlansScreenState extends State<PlansScreen> {
     });
 
     _showSnack(message);
+  }
+
+  Future<void> _restorePurchases() async {
+    if (_isInitializingBilling || _purchasing) return;
+    _showSnack('Checking your previous purchases...');
+    try {
+      await _billing.restorePurchases();
+    } catch (_) {
+      _showSnack('Could not restore purchases. Please try again.');
+    }
   }
 
   Future<void> _purchase(
@@ -584,130 +600,70 @@ class _PlansScreenState extends State<PlansScreen> {
     final emoji = plan['emoji'] as String;
     final description = plan['description'] as String;
     final badge = plan['badge'] as String;
-    final isSubscription = plan['subscription'] as bool;
     final gradientColors = plan['gradient'] as List<Color>;
-
     final isThisPlanPurchasing = _purchasing && _purchasingIndex == index;
+    final price = _billing.price(productId) ?? (plan['subscription'] as bool ? '₹140/week' : '₹100');
+    final disabled = _purchasing || _isInitializingBilling;
 
-    final price = _billing.price(productId) ??
-        (isSubscription ? '₹140/week' : '₹100');
-
-    return GestureDetector(
-      onTap: _purchasing || _isInitializingBilling
-          ? null
-          : () => _purchase(index, plan),
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 180),
-        opacity: _purchasing && !isThisPlanPurchasing ? 0.55 : 1,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1035).withOpacity(0.88),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: isThisPlanPurchasing
-                  ? gradientColors.first
-                  : Colors.white.withOpacity(0.09),
-              width: isThisPlanPurchasing ? 1.5 : 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: gradientColors.first.withOpacity(0.10),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 220),
+      opacity: _purchasing && !isThisPlanPurchasing ? 0.52 : 1,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: disabled ? null : () => _purchase(index, plan),
+          child: Ink(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1035).withOpacity(0.88),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: isThisPlanPurchasing ? gradientColors.first : Colors.white.withOpacity(0.09),
+                width: isThisPlanPurchasing ? 1.5 : 1,
               ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: gradientColors),
-                  borderRadius: BorderRadius.circular(17),
+              boxShadow: [
+                BoxShadow(color: gradientColors.first.withOpacity(0.10), blurRadius: 20, offset: const Offset(0, 8)),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: gradientColors),
+                    borderRadius: BorderRadius.circular(17),
+                  ),
+                  child: Center(child: Text(emoji, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold))),
                 ),
-                child: Center(
-                  child: Text(
-                    emoji,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                    ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(child: Text(label, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(gradient: LinearGradient(colors: gradientColors), borderRadius: BorderRadius.circular(7)),
+                            child: Text(badge, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF8A8AAA), fontSize: 12, height: 1.3)),
+                      const SizedBox(height: 6),
+                      Text(coins.toString() + ' coins', style: TextStyle(color: gradientColors.first, fontSize: 13, fontWeight: FontWeight.w600)),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            label,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(colors: gradientColors),
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                          child: Text(
-                            badge,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF8A8AAA),
-                        fontSize: 12,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '$coins coins',
-                      style: TextStyle(
-                        color: gradientColors.first,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              _buildPriceButton(
-                price: price,
-                colors: gradientColors,
-                isLoading: isThisPlanPurchasing,
-              ),
-            ],
+                const SizedBox(width: 10),
+                _buildPriceButton(price: isThisPlanPurchasing ? '...' : price, colors: gradientColors, isLoading: isThisPlanPurchasing),
+              ],
+            ),
           ),
         ),
       ),
