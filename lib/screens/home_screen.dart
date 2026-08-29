@@ -14,7 +14,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _coins = 0;
-  String _debugInfo = 'loading...';
+  bool _coinsLoading = true;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -47,11 +47,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _loadCoins() async {
-    final c = await CoinsService.getCoins();
-    if (mounted) setState(() {
-      _coins = c;
-      _debugInfo = CoinsService.lastDebug;
-    });
+    if (mounted) setState(() => _coinsLoading = true);
+    try {
+      final c = await CoinsService.getCoins();
+      if (mounted) setState(() {
+        _coins = c;
+        _coinsLoading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _coinsLoading = false);
+    }
   }
 
   void _openReplier(String mood, String emoji) async {
@@ -74,20 +79,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Column(
             children: [
               _buildTopBar(),
-              // DEBUG BANNER — remove before release
-              Container(
-                color: Colors.black,
-                width: double.infinity,
-                padding: const EdgeInsets.all(8),
-                child: SelectableText(
-                  _debugInfo,
-                  style: const TextStyle(
-                    color: Colors.yellow,
-                    fontSize: 10,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -116,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildTopBar() {
-    final firstName = widget.userName.split(' ').first;
+    final firstName = userName.split(' ').first;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Row(
@@ -164,7 +155,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 children: [
                   const Text('🪙', style: TextStyle(fontSize: 15)),
                   const SizedBox(width: 5),
-                  Text('$_coins', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                  if (_coinsLoading)
+                    const SizedBox(width: 20, height: 16, child: CircularProgressIndicator(strokeWidth: 1.5, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                  else
+                    Text('$_coins', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                 ],
               ),
             ),
@@ -347,7 +341,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 }
 
-// ── Mood Card ──────────────────────────────────────────────────────────────────
 class _MoodCard extends StatefulWidget {
   final Map<String, dynamic> mood;
   final VoidCallback onTap;
