@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../services/coins_service.dart';
@@ -215,6 +216,23 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  String _googleSignInError(PlatformException error) {
+    final details =
+        '${error.code} ${error.message ?? ''} ${error.details ?? ''}'.toLowerCase();
+
+    if (details.contains('10') ||
+        details.contains('developer_error') ||
+        details.contains('developer error')) {
+      return 'Google sign-in is not configured for this app build. Add its Android SHA-1 fingerprint to Firebase, refresh google-services.json, and rebuild.';
+    }
+
+    if (details.contains('cancel')) {
+      return 'Google sign-in was cancelled.';
+    }
+
+    return 'Google sign-in failed (${error.code}). Please try again.';
+  }
+
   Future<void> _googleSignIn() async {
     if (_googleLoad) return;
 
@@ -252,7 +270,13 @@ class _LoginScreenState extends State<LoginScreen>
       await _goHome(user);
     } on FirebaseAuthException catch (e) {
       _showSnack(_friendlyError(e.code));
+    } on PlatformException catch (e) {
+      debugPrint(
+        'Google sign-in failed: code=${e.code}, message=${e.message}, details=${e.details}',
+      );
+      _showSnack(_googleSignInError(e));
     } catch (e) {
+      debugPrint('Google sign-in failed: $e');
       _showSnack('Google sign-in failed. Please try again.');
     } finally {
       if (mounted) {
