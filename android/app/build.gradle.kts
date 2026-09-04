@@ -9,12 +9,18 @@ plugins {
 
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
-
-require(keystorePropertiesFile.exists()) {
-    "Missing android/key.properties. Release signing is not configured."
+val hasReleaseSigning = keystorePropertiesFile.exists()
+val isReleaseBuild = gradle.startParameter.taskNames.any {
+    it.contains("Release", ignoreCase = true)
 }
 
-keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+if (isReleaseBuild && !hasReleaseSigning) {
+    error("Missing android/key.properties. Release signing is required for release builds.")
+}
+
+if (hasReleaseSigning) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
 
 android {
     namespace = "com.prothon.rizzguru"
@@ -27,7 +33,8 @@ android {
     }
 
     signingConfigs {
-        create("release") {
+        if (hasReleaseSigning) {
+            create("release") {
             storeFile = file(
                 keystoreProperties.getProperty("storeFile")
                     ?: error("storeFile is missing")
@@ -41,6 +48,7 @@ android {
 
             keyPassword = keystoreProperties.getProperty("keyPassword")
                 ?: error("keyPassword is missing")
+            }
         }
     }
 
@@ -54,7 +62,9 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }
