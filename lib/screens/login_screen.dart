@@ -216,21 +216,12 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  String _googleSignInError(PlatformException error) {
-    final details =
-        '${error.code} ${error.message ?? ''} ${error.details ?? ''}'.toLowerCase();
-
-    if (details.contains('10') ||
-        details.contains('developer_error') ||
-        details.contains('developer error')) {
-      return 'Google sign-in is not configured for this app build. Add its Android SHA-1 fingerprint to Firebase, refresh google-services.json, and rebuild.';
-    }
-
-    if (details.contains('cancel')) {
-      return 'Google sign-in was cancelled.';
-    }
-
-    return 'Google sign-in failed (${error.code}). Please try again.';
+ String _googleSignInError(PlatformException error) {
+  return 'Google sign-in failed\n'
+      'Code: ${error.code}\n'
+      'Message: ${error.message ?? 'none'}\n'
+      'Details: ${error.details ?? 'none'}';
+}
   }
 
   Future<void> _googleSignIn() async {
