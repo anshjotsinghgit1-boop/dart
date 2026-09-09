@@ -222,7 +222,7 @@ class _LoginScreenState extends State<LoginScreen>
       'Message: ${error.message ?? 'none'}\n'
       'Details: ${error.details ?? 'none'}';
 }
-  }
+  
 
   Future<void> _googleSignIn() async {
     if (_googleLoad) return;
