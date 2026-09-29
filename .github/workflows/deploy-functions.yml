@@ -32,7 +32,7 @@ jobs:
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@v15.28.1
         with:
-          args: deploy --only functions
+          args: deploy --only functions --force
         env:
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           PROJECT_ID: replyai-749f7
