@@ -1,26 +1,36 @@
 name: Deploy Firebase Functions
 
 on:
+  workflow_dispatch:
+
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - "functions/**"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
-        run: cd functions && npm install
+        working-directory: functions
+        run: npm install
 
       - name: Deploy to Firebase
-        uses: w9jds/firebase-action@master
+        uses: w9jds/firebase-action@v15.28.1
         with:
           args: deploy --only functions
         env:
