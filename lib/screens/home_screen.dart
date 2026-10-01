@@ -130,10 +130,13 @@ class _HomeScreenState extends State<HomeScreen>
           _coinsLoading = false;
         });
       }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _coinsLoading = false);
-      }
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() => _coinsLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not load coins: $error')),
+      );
     }
   }
 
