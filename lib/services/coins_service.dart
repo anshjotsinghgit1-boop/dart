@@ -2,7 +2,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 class CoinsService {
   static const String functionsRegion = 'asia-south1';
-  static String lastDebug = ''; // Debug tracking
+  static String lastDebug = '';
 
   static final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
     region: functionsRegion,
@@ -17,10 +17,10 @@ class CoinsService {
       final coins = _coinsFromResult(result.data);
       lastDebug = 'Coins: $coins | Profile ensured';
       return coins;
-    } catch (e) {
-  lastDebug = 'Spend error: $e';
-  rethrow;
-}
+    } catch (error) {
+      lastDebug = 'Error: $error';
+      rethrow;
+    }
   }
 
   static Future<int> getCoins() async {
@@ -37,9 +37,9 @@ class CoinsService {
       final success = data['success'] == true;
       lastDebug = success ? 'Coin spent successfully' : 'Coin spend failed';
       return success;
-    } catch (e) {
-      lastDebug = 'Spend error: $e';
-      return false;
+    } catch (error) {
+      lastDebug = 'Spend error: $error';
+      rethrow;
     }
   }
 
