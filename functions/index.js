@@ -10,7 +10,7 @@ const { createHash } = require("crypto");
 
 initializeApp();
 
-const db = getFirestore();
+const db = getFirestore("databaseforrizzaj");
 
 const PACKAGE_NAME = "com.prothon.rizzguru";
 const TOP_UP_PRODUCT_ID = "coins_150_100";
