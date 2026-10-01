@@ -18,9 +18,9 @@ class CoinsService {
       lastDebug = 'Coins: $coins | Profile ensured';
       return coins;
     } catch (e) {
-      lastDebug = 'Error: $e';
-      return 0;
-    }
+  lastDebug = 'Spend error: $e';
+  rethrow;
+}
   }
 
   static Future<int> getCoins() async {
