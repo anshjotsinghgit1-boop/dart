@@ -4,8 +4,7 @@ import 'package:http/http.dart' as http;
 class GroqService {
   static const _apiKey = String.fromEnvironment('AICREDITS_API_KEY');
   static const _baseUrl = 'https://aicredits.in/v1/chat/completions';
-  static const _model = 'deepseek/deepseek-chat';
-
+  static const _model = 'openai/gpt-4.1';
   /// Score-based Hinglish detector.
   /// Catches exact words, romanized forms, and common Indian texting patterns.
   /// Threshold is low on purpose — better to reply in Hinglish than miss it.
