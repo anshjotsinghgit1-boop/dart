@@ -22,10 +22,19 @@ class ReplierScreen extends StatefulWidget {
 class _ReplierScreenState extends State<ReplierScreen>
     with TickerProviderStateMixin {
   final _controller = TextEditingController();
+
   String _reply = '';
   bool _isLoading = false;
   bool _copied = false;
   int _coins = 0;
+
+  // Short-term conversation memory.
+  //
+  // user = their message
+  // assistant = our generated reply
+  //
+  // We keep only the latest 8 messages to control token usage.
+  final List<Map<String, String>> _conversation = [];
 
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
@@ -35,20 +44,24 @@ class _ReplierScreenState extends State<ReplierScreen>
   @override
   void initState() {
     super.initState();
+
     _loadCoins();
 
     _fadeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+
     _fadeAnim = CurvedAnimation(
       parent: _fadeCtrl,
       curve: Curves.easeOut,
     );
+
     _slideCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+
     _slideAnim = Tween<Offset>(
       begin: const Offset(0, 0.15),
       end: Offset.zero,
@@ -71,18 +84,25 @@ class _ReplierScreenState extends State<ReplierScreen>
   Future<void> _loadCoins() async {
     try {
       final coins = await CoinsService.getCoins();
-      if (mounted) setState(() => _coins = coins);
+
+      if (mounted) {
+        setState(() => _coins = coins);
+      }
     } catch (error) {
-      if (mounted) _showSnack('Could not load coins: $error');
+      if (mounted) {
+        _showSnack('Could not load coins: $error');
+      }
     }
   }
 
   Future<void> _generate() async {
     final msg = _controller.text.trim();
+
     if (msg.isEmpty) {
       _showSnack('Paste the message you received first!');
       return;
     }
+
     if (_coins <= 0) {
       _showNoCoinsDialog();
       return;
@@ -93,40 +113,93 @@ class _ReplierScreenState extends State<ReplierScreen>
       _reply = '';
       _copied = false;
     });
+
     _fadeCtrl.reset();
     _slideCtrl.reset();
 
     try {
       final spent = await CoinsService.spendCoin();
+
       if (!spent) {
         _showNoCoinsDialog();
         return;
       }
 
+      // Send the recent conversation to the AI.
+      //
+      // IMPORTANT:
+      // The current message is NOT added to _conversation yet.
+      // GroqService adds it to the API request separately.
       final result = await GroqService.generateReply(
         message: msg,
         mood: widget.mood,
+        conversation: List<Map<String, String>>.from(_conversation),
       );
+
+      // Only save the conversation AFTER a successful AI response.
+      //
+      // This prevents failed requests from polluting the conversation
+      // history.
+      _conversation.add({
+        'role': 'user',
+        'content': msg,
+      });
+
+      _conversation.add({
+        'role': 'assistant',
+        'content': result,
+      });
+
+      // Keep only the latest 8 messages.
+      //
+      // Example:
+      // message 1
+      // message 2
+      // ...
+      // message 8
+      //
+      // Older messages are automatically removed.
+      if (_conversation.length > 8) {
+        _conversation.removeRange(
+          0,
+          _conversation.length - 8,
+        );
+      }
+
       await _loadCoins();
 
       if (mounted) {
         setState(() => _reply = result);
+
         _fadeCtrl.forward();
         _slideCtrl.forward();
       }
     } catch (error) {
-      if (mounted) _showSnack('Error: $error');
+      if (mounted) {
+        _showSnack('Error: $error');
+      }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _copyReply() {
-    Clipboard.setData(ClipboardData(text: _reply));
+    if (_reply.isEmpty) return;
+
+    Clipboard.setData(
+      ClipboardData(text: _reply),
+    );
+
     setState(() => _copied = true);
+
     HapticFeedback.lightImpact();
+
     Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _copied = false);
+      if (mounted) {
+        setState(() => _copied = false);
+      }
     });
   }
 
@@ -145,6 +218,7 @@ class _ReplierScreenState extends State<ReplierScreen>
 
   void _showNoCoinsDialog() {
     setState(() => _isLoading = false);
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -171,7 +245,9 @@ class _ReplierScreenState extends State<ReplierScreen>
             onPressed: () => Navigator.pop(context),
             child: const Text(
               'Maybe Later',
-              style: TextStyle(color: Color(0xFF8A8AAA)),
+              style: TextStyle(
+                color: Color(0xFF8A8AAA),
+              ),
             ),
           ),
           ElevatedButton(
@@ -187,6 +263,7 @@ class _ReplierScreenState extends State<ReplierScreen>
             ),
             onPressed: () {
               Navigator.pop(context);
+
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -295,7 +372,10 @@ class _ReplierScreenState extends State<ReplierScreen>
             ),
             child: Row(
               children: [
-                const Text('🪙', style: TextStyle(fontSize: 13)),
+                const Text(
+                  '🪙',
+                  style: TextStyle(fontSize: 13),
+                ),
                 const SizedBox(width: 4),
                 Text(
                   '$_coins',
@@ -315,7 +395,10 @@ class _ReplierScreenState extends State<ReplierScreen>
 
   Widget _buildMoodBadge() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: 12,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xFFFF5B63).withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
@@ -326,7 +409,10 @@ class _ReplierScreenState extends State<ReplierScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(widget.emoji, style: const TextStyle(fontSize: 22)),
+          Text(
+            widget.emoji,
+            style: const TextStyle(fontSize: 22),
+          ),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,7 +464,9 @@ class _ReplierScreenState extends State<ReplierScreen>
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+            ),
           ),
           child: TextField(
             controller: _controller,
@@ -389,7 +477,8 @@ class _ReplierScreenState extends State<ReplierScreen>
               height: 1.5,
             ),
             decoration: InputDecoration(
-              hintText: 'e.g. "hey, what are you up to tonight?" 😏',
+              hintText:
+                  'e.g. "hey, what are you up to tonight?" 😏',
               hintStyle: TextStyle(
                 color: Colors.white.withOpacity(0.3),
                 fontSize: 14,
@@ -447,7 +536,10 @@ class _ReplierScreenState extends State<ReplierScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('✨', style: TextStyle(fontSize: 18)),
+              const Text(
+                '✨',
+                style: TextStyle(fontSize: 18),
+              ),
               const SizedBox(width: 10),
               Text(
                 _isLoading
@@ -562,7 +654,8 @@ class _ReplierScreenState extends State<ReplierScreen>
                       color: const Color(0xFFFF5B63).withOpacity(0.15),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: const Color(0xFFFF5B63).withOpacity(0.4),
+                        color:
+                            const Color(0xFFFF5B63).withOpacity(0.4),
                       ),
                     ),
                     child: Row(
@@ -587,19 +680,22 @@ class _ReplierScreenState extends State<ReplierScreen>
                   GestureDetector(
                     onTap: _copyReply,
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
+                      duration:
+                          const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
                         color: _copied
-                            ? const Color(0xFF4CAF50).withOpacity(0.15)
+                            ? const Color(0xFF4CAF50)
+                                .withOpacity(0.15)
                             : Colors.white.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: _copied
-                              ? const Color(0xFF4CAF50).withOpacity(0.5)
+                              ? const Color(0xFF4CAF50)
+                                  .withOpacity(0.5)
                               : Colors.white.withOpacity(0.1),
                         ),
                       ),
@@ -632,7 +728,10 @@ class _ReplierScreenState extends State<ReplierScreen>
                 ],
               ),
               const SizedBox(height: 16),
-              const Divider(color: Color(0x22FFFFFF), height: 1),
+              const Divider(
+                color: Color(0x22FFFFFF),
+                height: 1,
+              ),
               const SizedBox(height: 16),
               Text(
                 _reply,
@@ -646,15 +745,18 @@ class _ReplierScreenState extends State<ReplierScreen>
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
-                  onPressed: _generate,
+                  onPressed: _isLoading ? null : _generate,
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(
-                      color: const Color(0xFFFF5B63).withOpacity(0.5),
+                      color:
+                          const Color(0xFFFF5B63).withOpacity(0.5),
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                    ),
                   ),
                   child: const Text(
                     'Try Another Reply 🔄',
