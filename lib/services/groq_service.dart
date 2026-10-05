@@ -8,7 +8,7 @@ class GroqService {
   static const String _baseUrl =
       'https://api.aicredits.in/v1/chat/completions';
 
-  static const String _model = 'x-ai/grok-4.3';
+  static const String _model = 'openai/gpt-5-mini';
 
   // ---------------------------------------------------------------------------
   // HINGLISH DETECTION
