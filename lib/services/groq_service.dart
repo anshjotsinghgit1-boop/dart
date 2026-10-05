@@ -527,7 +527,7 @@ Output ONLY the reply.''';
         },
         {
           'role': 'assistant',
-          'content': 'Because I'm gay',
+          'content': 'Because Im gay',
         },
         {
           'role': 'user',
