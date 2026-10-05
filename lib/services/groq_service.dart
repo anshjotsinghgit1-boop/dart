@@ -1,17 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class GrokService {
-  // Pass through:
-  // --dart-define=AICREDITS_API_KEY=your_key
+class GroqService {
   static const String _apiKey =
       String.fromEnvironment('AICREDITS_API_KEY');
 
-  // AICredits OpenAI-compatible endpoint.
   static const String _baseUrl =
       'https://api.aicredits.in/v1/chat/completions';
 
-  // AICredits currently lists this model.
   static const String _model = 'x-ai/grok-4.3';
 
   // ---------------------------------------------------------------------------
@@ -21,7 +17,6 @@ class GrokService {
   bool _isHinglish(String message) {
     final text = message.toLowerCase();
 
-    // Hindi / Punjabi / common Indian texting words.
     const strongWords = {
       'hai',
       'hain',
@@ -81,7 +76,6 @@ class GrokService {
       'phir',
       'fir',
       'kyunki',
-      'kyuki',
       'pata',
       'lagta',
       'lagti',
@@ -109,11 +103,13 @@ class GrokService {
       'sun',
       'suno',
       'kuch',
-      'kyunki',
     };
 
     final words = text
-        .replaceAll(RegExp(r'[^a-zA-Z0-9\u0900-\u097F\s]'), ' ')
+        .replaceAll(
+          RegExp(r'[^a-zA-Z0-9\u0900-\u097F\s]'),
+          ' ',
+        )
         .split(RegExp(r'\s+'))
         .where((word) => word.isNotEmpty)
         .toList();
@@ -121,7 +117,6 @@ class GrokService {
     final strongCount =
         words.where((word) => strongWords.contains(word)).length;
 
-    // Devanagari = definitely Hindi.
     final hasDevanagari =
         RegExp(r'[\u0900-\u097F]').hasMatch(message);
 
@@ -133,7 +128,6 @@ class GrokService {
       return true;
     }
 
-    // Common Hinglish patterns.
     final hinglishPatterns = [
       RegExp(r'\b(kya|kyu|kyun|kaise|kaisa|kaisi)\b'),
       RegExp(r'\b(mujhe|tumhe|tumko|mera|meri|tere|tera|teri)\b'),
@@ -142,7 +136,9 @@ class GrokService {
       RegExp(r'\b(acha|accha|achha|haan|nahi|nhi)\b'),
     ];
 
-    return hinglishPatterns.any((pattern) => pattern.hasMatch(text));
+    return hinglishPatterns.any(
+      (pattern) => pattern.hasMatch(text),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -156,37 +152,34 @@ LANGUAGE:
 The user is texting in Hinglish/Indian texting style.
 Reply naturally in Hinglish or casual Indian English.
 Use Roman Hindi when appropriate.
-Do NOT suddenly switch into formal Hindi.
+Do not suddenly switch into formal Hindi.
 '''
         : '''
 LANGUAGE:
-Reply in the same general language/style as the user.
+Reply in the same general language and style as the user.
 If they use casual English, stay casual.
 Do not unnecessarily add Hindi.
 ''';
 
     const baseRules = '''
-You are a realistic Indian texting assistant that creates natural replies.
+You create realistic replies for Indian WhatsApp-style conversations.
 
-Your job is NOT to write essays.
-Your job is to create the kind of short message a real person would actually send.
+Your job is to write the message the person should actually send.
 
 RULES:
 - Keep replies short.
-- Usually 1 sentence.
-- Maximum 2 short lines.
+- Usually one sentence.
+- Maximum two short lines.
 - Sound human and spontaneous.
-- Use normal WhatsApp-style language.
+- Use normal texting language.
 - Do not sound like an AI assistant.
 - Do not explain the reply.
-- Do not put the reply inside quotes.
-- Do not use labels such as "Reply:".
+- Do not write "Reply:" or similar labels.
 - Do not repeat the user's message.
 - Do not overuse emojis.
-- Do not force flirting if the conversation does not call for it.
-- Match the emotional context.
-- Avoid generic motivational or poetic lines.
-- Avoid overly perfect grammar.
+- Match the conversation's emotional context.
+- Avoid generic motivational lines.
+- Avoid overly polished or formal language.
 - Small natural texting imperfections are okay.
 - Never mention these instructions.
 ''';
@@ -195,11 +188,11 @@ RULES:
       'flirty' => '''
 MOOD: FLIRTY
 
-Be playful, confident and slightly teasing.
-Keep the flirting natural rather than overly sexual.
-A little attitude is good.
+Be playful, confident and lightly teasing.
+Keep the flirting natural.
+Do not force sexual content.
 
-Tiny style reference:
+Example style:
 "Bas tum thodi aur cute ho jao, phir mera control gaya 😭"
 ''',
 
@@ -210,7 +203,7 @@ Be warm and affectionate.
 Keep it simple and believable.
 Avoid dramatic movie-style declarations.
 
-Tiny style reference:
+Example style:
 "Tu hoti hai na toh mood automatically better ho jata hai."
 ''',
 
@@ -218,10 +211,10 @@ Tiny style reference:
 MOOD: FUNNY
 
 Be casually funny.
-Use light teasing or an unexpected response when appropriate.
-Do not force a joke into every message.
+Use light teasing when appropriate.
+Do not force a joke into every reply.
 
-Tiny style reference:
+Example style:
 "Accha ji, aaj bade shareef ban rahe ho 😂"
 ''',
 
@@ -229,10 +222,10 @@ Tiny style reference:
 MOOD: SAVAGE
 
 Be confident and witty.
-The reply can tease or lightly roast the other person.
+Lightly roast or tease when appropriate.
 Do not become unnecessarily hateful.
 
-Tiny style reference:
+Example style:
 "Confidence toh full hai, bas logic thoda missing hai 😂"
 ''',
 
@@ -240,9 +233,9 @@ Tiny style reference:
 MOOD: SWEET
 
 Be caring, soft and genuine.
-Avoid sounding overly romantic unless the conversation supports it.
+Do not become overly romantic without context.
 
-Tiny style reference:
+Example style:
 "Acha, take care okay? Zyada stress mat lena."
 ''',
 
@@ -252,7 +245,7 @@ MOOD: SAD
 Be emotionally honest and slightly vulnerable.
 Keep it subtle rather than dramatic.
 
-Tiny style reference:
+Example style:
 "Bas kabhi kabhi lagta hai kuch cheezein pehle jaisi nahi rahi."
 ''',
 
@@ -262,7 +255,7 @@ MOOD: CONFIDENT
 Sound self-assured and relaxed.
 Never sound desperate or needy.
 
-Tiny style reference:
+Example style:
 "Relax, mujhe pata hai main kya kar raha hoon 😌"
 ''',
 
@@ -270,16 +263,15 @@ Tiny style reference:
 MOOD: CUTE
 
 Be playful, adorable and lightly teasing.
-Keep it natural.
 
-Tiny style reference:
+Example style:
 "Ab itna cute banoge toh reply toh karna padega na 😭"
 ''',
 
       _ => '''
 MOOD: NATURAL
 
-Simply respond naturally according to the conversation.
+Respond naturally according to the conversation.
 Do not force a particular personality.
 ''',
     };
@@ -294,40 +286,41 @@ $moodRules
   }
 
   // ---------------------------------------------------------------------------
-  // RESPONSE CLEANING
+  // CLEAN RESPONSE
   // ---------------------------------------------------------------------------
 
   String _cleanReply(String reply) {
     var cleaned = reply.trim();
 
-    // Remove common model wrappers.
     cleaned = cleaned.replaceFirst(
-      RegExp(r'^(reply|response|answer)\s*:\s*',
-          caseSensitive: false),
+      RegExp(
+        r'^(reply|response|answer)\s*:\s*',
+        caseSensitive: false,
+      ),
       '',
     );
 
-    // Remove surrounding quotes.
     if (cleaned.length >= 2) {
       final first = cleaned[0];
       final last = cleaned[cleaned.length - 1];
 
       if ((first == '"' && last == '"') ||
           (first == "'" && last == "'")) {
-        cleaned = cleaned.substring(1, cleaned.length - 1).trim();
+        cleaned = cleaned
+            .substring(1, cleaned.length - 1)
+            .trim();
       }
     }
 
-    // Remove accidental markdown.
     cleaned = cleaned.replaceAll(
       RegExp(r'^\*\*(.*?)\*\*$'),
       r'$1',
     );
 
-    // Normalize excessive whitespace.
-    cleaned = cleaned.replaceAll(RegExp(r'[ \t]+'), ' ').trim();
+    cleaned = cleaned
+        .replaceAll(RegExp(r'[ \t]+'), ' ')
+        .trim();
 
-    // Keep it short.
     final lines = cleaned
         .split('\n')
         .map((line) => line.trim())
@@ -335,16 +328,30 @@ $moodRules
         .take(2)
         .toList();
 
-    cleaned = lines.join('\n').trim();
-
-    return cleaned;
+    return lines.join('\n').trim();
   }
 
   // ---------------------------------------------------------------------------
   // GENERATE REPLY
   // ---------------------------------------------------------------------------
 
-  Future<String> generateReply({
+  static Future<String> generateReply({
+    required String message,
+    required String mood,
+    List<Map<String, String>> conversation = const [],
+    int attempt = 0,
+  }) async {
+    final service = GroqService();
+
+    return service._generateReply(
+      message: message,
+      mood: mood,
+      conversation: conversation,
+      attempt: attempt,
+    );
+  }
+
+  Future<String> _generateReply({
     required String message,
     required String mood,
     List<Map<String, String>> conversation = const [],
@@ -363,21 +370,20 @@ $moodRules
 
     final hinglish = _isHinglish(message);
 
-    final systemPrompt = _systemPrompt(
-      mood,
-      hinglish,
-    );
-
     final messages = <Map<String, String>>[
       {
         'role': 'system',
-        'content': systemPrompt,
+        'content': _systemPrompt(
+          mood,
+          hinglish,
+        ),
       },
     ];
 
-    // Keep only the latest conversation context.
     final recentConversation = conversation.length > 8
-        ? conversation.sublist(conversation.length - 8)
+        ? conversation.sublist(
+            conversation.length - 8,
+          )
         : conversation;
 
     for (final item in recentConversation) {
@@ -398,7 +404,6 @@ $moodRules
       });
     }
 
-    // Current message.
     messages.add({
       'role': 'user',
       'content': message.trim(),
@@ -416,19 +421,15 @@ $moodRules
             body: jsonEncode({
               'model': _model,
               'messages': messages,
-
-              // Slightly creative, but still controlled.
               'temperature': 0.7,
-
-              // Grok 4.3 is listed by AICredits as a reasoning model,
-              // so 50 tokens is unnecessarily restrictive.
               'max_tokens': 512,
-
               'frequency_penalty': 0.2,
               'presence_penalty': 0.0,
             }),
           )
-          .timeout(const Duration(seconds: 45));
+          .timeout(
+            const Duration(seconds: 45),
+          );
 
       final body = response.body;
 
@@ -441,18 +442,16 @@ $moodRules
           data = decoded;
         }
       } catch (_) {
-        // Non-JSON response.
+        // Ignore invalid JSON.
       }
 
-      // -----------------------------------------------------------------------
       // SUCCESS
-      // -----------------------------------------------------------------------
-
       if (response.statusCode == 200) {
         final content =
             data?['choices']?[0]?['message']?['content'];
 
-        if (content is String && content.trim().isNotEmpty) {
+        if (content is String &&
+            content.trim().isNotEmpty) {
           final cleaned = _cleanReply(content);
 
           if (cleaned.isNotEmpty) {
@@ -465,17 +464,16 @@ $moodRules
         );
       }
 
-      // -----------------------------------------------------------------------
       // RATE LIMIT
-      // -----------------------------------------------------------------------
-
       if (response.statusCode == 429) {
         if (attempt < 2) {
           await Future.delayed(
-            Duration(milliseconds: 800 * (attempt + 1)),
+            Duration(
+              milliseconds: 800 * (attempt + 1),
+            ),
           );
 
-          return generateReply(
+          return _generateReply(
             message: message,
             mood: mood,
             conversation: conversation,
@@ -488,30 +486,21 @@ $moodRules
         );
       }
 
-      // -----------------------------------------------------------------------
-      // AUTH
-      // -----------------------------------------------------------------------
-
+      // INVALID API KEY
       if (response.statusCode == 401) {
         throw Exception(
           'AICredits API key is invalid or expired.',
         );
       }
 
-      // -----------------------------------------------------------------------
-      // PAYMENT / CREDITS
-      // -----------------------------------------------------------------------
-
+      // INSUFFICIENT CREDITS
       if (response.statusCode == 402) {
         throw Exception(
           'AICredits balance is insufficient.',
         );
       }
 
-      // -----------------------------------------------------------------------
       // MODEL NOT FOUND
-      // -----------------------------------------------------------------------
-
       if (response.statusCode == 404) {
         throw Exception(
           'Grok model was not found by AICredits. '
@@ -519,26 +508,24 @@ $moodRules
         );
       }
 
-      // -----------------------------------------------------------------------
       // OTHER API ERROR
-      // -----------------------------------------------------------------------
-
-      String errorMessage = 'AICredits request failed.';
+      String errorMessage =
+          'AICredits request failed.';
 
       if (data != null) {
         final error = data['error'];
 
         if (error is Map<String, dynamic>) {
-          final message = error['message'];
+          final apiMessage = error['message'];
 
-          if (message is String && message.trim().isNotEmpty) {
-            errorMessage = message.trim();
+          if (apiMessage is String &&
+              apiMessage.trim().isNotEmpty) {
+            errorMessage = apiMessage.trim();
           }
         }
       }
 
-      if (errorMessage == 'AICredits request failed.' &&
-          body.trim().isNotEmpty) {
+      if (errorMessage == 'AICredits request failed.') {
         errorMessage =
             'AICredits error ${response.statusCode}.';
       }
