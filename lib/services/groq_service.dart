@@ -5,33 +5,126 @@ class GroqService {
   static const _apiKey = String.fromEnvironment('AICREDITS_API_KEY');
   static const _baseUrl = 'https://aicredits.in/v1/chat/completions';
   static const _model = 'openai/gpt-4o-mini';
+
   /// Score-based Hinglish detector.
   /// Catches exact words, romanized forms, and common Indian texting patterns.
   /// Threshold is low on purpose — better to reply in Hinglish than miss it.
   static bool _isHinglish(String msg) {
     final lower = msg.toLowerCase();
+
     final tokens = lower
         .split(RegExp(r'''[\s,.!?'"()\[\]{}]+'''))
         .where((t) => t.isNotEmpty)
         .toSet();
 
     const strongWords = {
-      'hai', 'hain', 'hoon', 'hun', 'hu', 'ho', 'kya', 'kyu', 'kyun', 'kyunki',
-      'nahi', 'nhi', 'nahii', 'naahi', 'nahin', 'yaar', 'bhai', 'bro', 'arre',
-      'arey', 'acha', 'accha', 'achha', 'toh', 'to', 'par', 'bas', 'kal', 'aaj',
-      'kuch', 'koi', 'mat', 'kar', 'kr', 'raha', 'rahi', 'rha', 'rhi', 'rahe',
-      'rhe', 'tha', 'thi', 'the', 'mera', 'meri', 'tera', 'teri', 'tumhara',
-      'tumhari', 'sun', 'baat', 'pyar', 'pyaar', 'dil', 'chal', 'chalo', 'theek',
-      'thik', 'sach', 'jhoot', 'miss', 'scene', 'nakhra', 'attitude', 'ignore',
-      'bata', 'batao', 'bol', 'bolna', 'dekh', 'jao', 'aao', 'aa', 'ja', 'reh',
-      'rehna', 'lagta', 'lagti', 'wala', 'wali', 'wale', 'tum', 'tu', 'mujhe',
-      'tujhe', 'mujhse', 'tujhse', 'apna', 'apni', 'haan', 'han',
-      'nai', 'matlb', 'matlab', 'sahi', 'galat', 'gussa', 'yaad', 'busy',
+      'hai',
+      'hain',
+      'hoon',
+      'hun',
+      'hu',
+      'ho',
+      'kya',
+      'kyu',
+      'kyun',
+      'kyunki',
+      'nahi',
+      'nhi',
+      'nahii',
+      'naahi',
+      'nahin',
+      'yaar',
+      'bhai',
+      'bro',
+      'arre',
+      'arey',
+      'acha',
+      'accha',
+      'achha',
+      'toh',
+      'to',
+      'par',
+      'bas',
+      'kal',
+      'aaj',
+      'kuch',
+      'koi',
+      'mat',
+      'kar',
+      'kr',
+      'raha',
+      'rahi',
+      'rha',
+      'rhi',
+      'rahe',
+      'rhe',
+      'tha',
+      'thi',
+      'the',
+      'mera',
+      'meri',
+      'tera',
+      'teri',
+      'tumhara',
+      'tumhari',
+      'sun',
+      'baat',
+      'pyar',
+      'pyaar',
+      'dil',
+      'chal',
+      'chalo',
+      'theek',
+      'thik',
+      'sach',
+      'jhoot',
+      'miss',
+      'scene',
+      'nakhra',
+      'attitude',
+      'ignore',
+      'bata',
+      'batao',
+      'bol',
+      'bolna',
+      'dekh',
+      'jao',
+      'aao',
+      'aa',
+      'ja',
+      'reh',
+      'rehna',
+      'lagta',
+      'lagti',
+      'wala',
+      'wali',
+      'wale',
+      'tum',
+      'tu',
+      'mujhe',
+      'tujhe',
+      'mujhse',
+      'tujhse',
+      'apna',
+      'apni',
+      'haan',
+      'han',
+      'nai',
+      'matlb',
+      'matlab',
+      'sahi',
+      'galat',
+      'gussa',
+      'yaad',
+      'busy',
     };
 
     var score = 0;
+
     for (final word in strongWords) {
-      if (tokens.contains(word)) score += 2;
+      if (tokens.contains(word)) {
+        score += 2;
+      }
     }
 
     final patterns = <RegExp>[
@@ -43,12 +136,17 @@ class GroqService {
       RegExp(r'\b(tumhara|tumhari|mera|meri|tera|teri)\b'),
       RegExp(r'\b(yaar|bhai|arre|arey|acha|accha)\b'),
     ];
+
     for (final p in patterns) {
-      if (p.hasMatch(lower)) score += 3;
+      if (p.hasMatch(lower)) {
+        score += 3;
+      }
     }
 
     // Devanagari anywhere = definitely Hinglish/Hindi context.
-    if (RegExp(r'[\u0900-\u097F]').hasMatch(msg)) score += 8;
+    if (RegExp(r'[\u0900-\u097F]').hasMatch(msg)) {
+      score += 8;
+    }
 
     return score >= 3;
   }
@@ -293,7 +391,8 @@ Output ONLY the reply.''';
         },
         {
           'role': 'assistant',
-          'content': 'tere jaisi baddie se baat nahi krunga toh kis se krunga? ',
+          'content':
+              'tere jaisi baddie se baat nahi krunga toh kis se krunga? ',
         },
         {
           'role': 'user',
@@ -309,7 +408,8 @@ Output ONLY the reply.''';
         },
         {
           'role': 'assistant',
-          'content': 'ignore?? tujhe?? Pgl hai kya itni cool bandi ko ignore kyu karunga mai',
+          'content':
+              'ignore?? tujhe?? Pgl hai kya itni cool bandi ko ignore kyu karunga mai',
         },
         {
           'role': 'user',
@@ -321,6 +421,7 @@ Output ONLY the reply.''';
         },
       ];
     }
+
     if (m == 'flirty' && !hinglish) {
       return [
         {
@@ -346,6 +447,7 @@ Output ONLY the reply.''';
         },
       ];
     }
+
     if (m == 'savage' && hinglish) {
       return [
         {
@@ -371,11 +473,13 @@ Output ONLY the reply.''';
         },
       ];
     }
+
     if (m == 'savage' && !hinglish) {
       return [
         {
           'role': 'user',
-          'content': 'Reply to this message: "you are so full of yourself"',
+          'content':
+              'Reply to this message: "you are so full of yourself"',
         },
         {'role': 'assistant', 'content': 'and yet here you are'},
         {
@@ -385,6 +489,7 @@ Output ONLY the reply.''';
         {'role': 'assistant', 'content': 'strong closer'},
       ];
     }
+
     if (m == 'funny' && hinglish) {
       return [
         {
@@ -413,6 +518,7 @@ Output ONLY the reply.''';
         },
       ];
     }
+
     if (m == 'funny' && !hinglish) {
       return [
         {
@@ -433,6 +539,7 @@ Output ONLY the reply.''';
         },
       ];
     }
+
     if (m == 'romantic' && hinglish) {
       return [
         {
@@ -461,6 +568,7 @@ Output ONLY the reply.''';
         },
       ];
     }
+
     if (m == 'sweet' && hinglish) {
       return [
         {
@@ -473,7 +581,8 @@ Output ONLY the reply.''';
         },
         {
           'role': 'user',
-          'content': 'Reply to this message: "thoda sad feel kar rahi hoon"',
+          'content':
+              'Reply to this message: "thoda sad feel kar rahi hoon"',
         },
         {
           'role': 'assistant',
@@ -481,6 +590,7 @@ Output ONLY the reply.''';
         },
       ];
     }
+
     if (m == 'sad' && hinglish) {
       return [
         {
@@ -501,6 +611,7 @@ Output ONLY the reply.''';
         },
       ];
     }
+
     if (m == 'confident' && hinglish) {
       return [
         {
@@ -513,7 +624,8 @@ Output ONLY the reply.''';
         },
         {
           'role': 'user',
-          'content': 'Reply to this message: "main decide nahi kar pa rahi"',
+          'content':
+              'Reply to this message: "main decide nahi kar pa rahi"',
         },
         {
           'role': 'assistant',
@@ -521,6 +633,7 @@ Output ONLY the reply.''';
         },
       ];
     }
+
     if (m == 'cute' && hinglish) {
       return [
         {
@@ -538,25 +651,34 @@ Output ONLY the reply.''';
         },
       ];
     }
+
     return [];
   }
 
   static String _cleanReply(String raw) {
     var reply = raw.trim();
-    if (reply.isEmpty) return reply;
+
+    if (reply.isEmpty) {
+      return reply;
+    }
 
     // Strip a single wrapping quote pair.
     if (reply.length >= 2) {
       final first = reply[0];
       final last = reply[reply.length - 1];
-      if ((first == '"' && last == '"') || (first == "'" && last == "'")) {
+
+      if ((first == '"' && last == '"') ||
+          (first == "'" && last == "'")) {
         reply = reply.substring(1, reply.length - 1).trim();
       }
     }
 
     // Drop a leading label if the model leaks one.
     reply = reply.replaceFirst(
-      RegExp(r'^(reply|response|output)\s*:\s*', caseSensitive: false),
+      RegExp(
+        r'^(reply|response|output)\s*:\s*',
+        caseSensitive: false,
+      ),
       '',
     );
 
@@ -566,31 +688,58 @@ Output ONLY the reply.''';
         .map((l) => l.trim())
         .where((l) => l.isNotEmpty)
         .toList();
+
     if (lines.length > 2) {
       reply = lines.take(2).join(' ');
     } else {
       reply = lines.join(' ');
     }
+
     return reply.trim();
   }
 
   static Future<String> generateReply({
     required String message,
     required String mood,
+
+    // Recent conversation from ReplierScreen.
+    // The screen keeps the latest 8 messages.
+    List<Map<String, String>> conversation = const [],
+
     int attempt = 0,
   }) async {
     if (_apiKey.isEmpty) {
-      throw Exception('AICREDITS_API_KEY is not set. Add it as a GitHub Secret.');
+      throw Exception(
+        'AICREDITS_API_KEY is not set. Add it as a GitHub Secret.',
+      );
     }
 
     final hinglish = _isHinglish(message);
     final systemPrompt = _systemPrompt(mood, hinglish);
     final fewShot = _fewShot(mood, hinglish);
 
+    // Safety cap.
+    // ReplierScreen already keeps 8 messages, but this prevents
+    // accidentally sending a huge history if another screen calls this.
+    final recentConversation = conversation.length > 8
+        ? conversation.sublist(conversation.length - 8)
+        : conversation;
+
     final messages = <Map<String, String>>[
       {'role': 'system', 'content': systemPrompt},
+
+      // Keep your existing examples exactly as before.
       ...fewShot,
-      {'role': 'user', 'content': 'Reply to this message: "$message"'},
+
+      // Previous conversation comes AFTER the examples so the model
+      // can use the actual conversation as the strongest context.
+      ...recentConversation,
+
+      // Current message is added last.
+      {
+        'role': 'user',
+        'content': 'Reply to this message: "$message"',
+      },
     ];
 
     final response = await http.post(
@@ -602,26 +751,75 @@ Output ONLY the reply.''';
       body: jsonEncode({
         'model': _model,
         'messages': messages,
-        'temperature': 0.4,
-        'max_tokens': 60,
-        'frequency_penalty': 0.1,
-        'presence_penalty': 0.1,
+        'temperature': 0.3,
+        'max_tokens': 50,
+        'frequency_penalty': 0.2,
+        'presence_penalty': 0.0,
       }),
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final content = data['choices'][0]['message']['content'];
-      return _cleanReply(content.toString());
-    } else if (response.statusCode == 429 && attempt < 2) {
-      await Future.delayed(Duration(seconds: (attempt + 1) * 3));
-      return generateReply(message: message, mood: mood, attempt: attempt + 1);
-    } else if (response.statusCode == 401) {
-      throw Exception('Invalid API key. Check your AICREDITS_API_KEY secret.');
-    } else if (response.statusCode == 402) {
-      throw Exception('Out of credits. Top up at aicredits.in');
-    } else {
-      throw Exception('Error ${response.statusCode}: ${response.body}');
+      try {
+        final data = jsonDecode(response.body);
+
+        final content = data['choices']?[0]?['message']?['content'];
+
+        if (content == null) {
+          throw Exception('Empty response from AI.');
+        }
+
+        final reply = _cleanReply(content.toString());
+
+        if (reply.isEmpty) {
+          throw Exception('AI returned an empty reply.');
+        }
+
+        return reply;
+      } catch (e) {
+        throw Exception('Invalid AI response: $e');
+      }
     }
+
+    if (response.statusCode == 429 && attempt < 2) {
+      await Future.delayed(
+        Duration(seconds: (attempt + 1) * 3),
+      );
+
+      return generateReply(
+        message: message,
+        mood: mood,
+        conversation: conversation,
+        attempt: attempt + 1,
+      );
+    }
+
+    if (response.statusCode == 401) {
+      throw Exception(
+        'Invalid API key. Check your AICREDITS_API_KEY secret.',
+      );
+    }
+
+    if (response.statusCode == 402) {
+      throw Exception(
+        'Out of credits. Top up at aicredits.in',
+      );
+    }
+
+    String errorMessage;
+
+    try {
+      final data = jsonDecode(response.body);
+
+      errorMessage =
+          data['error']?['message']?.toString() ??
+          data['message']?.toString() ??
+          response.body;
+    } catch (_) {
+      errorMessage = response.body;
+    }
+
+    throw Exception(
+      'Error ${response.statusCode}: $errorMessage',
+    );
   }
 }
