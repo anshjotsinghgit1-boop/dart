@@ -12,7 +12,7 @@ class GroqService {
   static bool _isHinglish(String msg) {
     final lower = msg.toLowerCase();
     final tokens = lower
-        .split(RegExp(r"[\s,.!?'\"()\[\]{}]+"))
+        .split(RegExp(r'''[\s,.!?'"()\[\]{}]+'''))
         .where((t) => t.isNotEmpty)
         .toSet();
 
@@ -26,7 +26,7 @@ class GroqService {
       'thik', 'sach', 'jhoot', 'miss', 'scene', 'nakhra', 'attitude', 'ignore',
       'bata', 'batao', 'bol', 'bolna', 'dekh', 'jao', 'aao', 'aa', 'ja', 'reh',
       'rehna', 'lagta', 'lagti', 'wala', 'wali', 'wale', 'tum', 'tu', 'mujhe',
-      'tujhe', 'mujhse', 'tujhse', 'mera', 'tera', 'apna', 'apni', 'haan', 'han',
+      'tujhe', 'mujhse', 'tujhse', 'apna', 'apni', 'haan', 'han',
       'nai', 'matlb', 'matlab', 'sahi', 'galat', 'gussa', 'yaad', 'busy',
     };
 
