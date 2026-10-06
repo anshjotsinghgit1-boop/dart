@@ -96,28 +96,18 @@ jobs:
         run: flutter pub run flutter_launcher_icons
 
       - name: Build release APK
-        env:
-          AICREDITS_API_KEY: ${{ secrets.AICREDITS_API_KEY }}
         run: |
           set -euo pipefail
-
-          test -n "$AICREDITS_API_KEY"
 
           flutter build apk \
-            --release \
-            --dart-define="AICREDITS_API_KEY=$AICREDITS_API_KEY"
+            --release
 
       - name: Build release AAB
-        env:
-          AICREDITS_API_KEY: ${{ secrets.AICREDITS_API_KEY }}
         run: |
           set -euo pipefail
 
-          test -n "$AICREDITS_API_KEY"
-
           flutter build appbundle \
-            --release \
-            --dart-define="AICREDITS_API_KEY=$AICREDITS_API_KEY"
+            --release
 
       - name: Confirm release files exist
         run: |
