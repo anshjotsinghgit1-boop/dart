@@ -23,16 +23,16 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
         working-directory: functions
         run: npm install
 
-      - name: Deploy to Firebase
+      - name: Deploy generateReply to Firebase
         uses: w9jds/firebase-action@v15.28.1
         with:
-          args: deploy --only functions --force
+          args: deploy --only functions:generateReply
         env:
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           PROJECT_ID: replyai-749f7
