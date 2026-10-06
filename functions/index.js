@@ -42,11 +42,7 @@ const COINS_PER_WEEK = 150;
 
 const FUNCTIONS_REGION = "asia-south1";
 
-// AI reservations expire after 2 minutes.
-// The AI client itself has a 45-second timeout.
 const AI_RESERVATION_TTL_MS = 2 * 60 * 1000;
-
-// Maximum request ID length accepted from the client.
 const MAX_REQUEST_ID_LENGTH = 128;
 
 // ============================================================================
@@ -178,7 +174,6 @@ async function applyPurchase({
     const currentCoins =
       Number(profileData.coins ?? 0);
 
-    // Purchase was already processed.
     if (usedSnapshot.exists) {
       const usedData =
         usedSnapshot.data() ?? {};
@@ -227,7 +222,6 @@ async function applyPurchase({
       };
     }
 
-    // Credit the coins.
     if (profileSnapshot.exists) {
       tx.update(profile, {
         coins: FieldValue.increment(coins),
@@ -324,7 +318,6 @@ exports.ensureUserProfile = onCall(
         const data =
           snapshot.data() ?? {};
 
-        // Older profiles may not have reservedCoins.
         if (
           typeof data.reservedCoins !==
           "number"
@@ -537,7 +530,6 @@ exports.verifyGooglePlayPurchase = onCall(
               COINS_PER_TOPUP,
           });
 
-        // Consume only after our own crediting transaction succeeded.
         if (
           Number(
             purchase.consumptionState,
@@ -700,12 +692,6 @@ exports.verifyGooglePlayPurchase = onCall(
 // AI RESERVATION HELPERS
 // ============================================================================
 
-/**
- * Releases stale AI reservations.
- *
- * If a function crashes after reserving coins, the reservation would
- * otherwise remain forever. This cleanup runs before a new reservation.
- */
 async function cleanupExpiredAIReservations(uid) {
   const profile = userRef(uid);
   const now = Timestamp.now();
@@ -721,8 +707,11 @@ async function cleanupExpiredAIReservations(uid) {
     const reservationCollection =
       profile.collection("aiReservations");
 
-    const expiredSnapshot =
-      await reservationCollection
+    // IMPORTANT:
+    // This query MUST be read through the transaction.
+    // Do not use reservationCollection.get() here.
+    const expiredQuery =
+      reservationCollection
         .where(
           "status",
           "==",
@@ -732,8 +721,10 @@ async function cleanupExpiredAIReservations(uid) {
           "expiresAt",
           "<=",
           now,
-        )
-        .get();
+        );
+
+    const expiredSnapshot =
+      await tx.get(expiredQuery);
 
     if (expiredSnapshot.empty) {
       return;
@@ -793,13 +784,6 @@ async function cleanupExpiredAIReservations(uid) {
   });
 }
 
-/**
- * Reserves coins before an AI request.
- *
- * IMPORTANT:
- * Coins are NOT actually deducted here.
- * They are only marked as reserved.
- */
 async function reserveAICoins(
   uid,
   coinCost,
@@ -990,9 +974,6 @@ async function reserveAICoins(
   );
 }
 
-/**
- * Releases reserved coins without charging the user.
- */
 async function releaseAICoins(
   uid,
   reservationId,
@@ -1023,7 +1004,6 @@ async function releaseAICoins(
         reservationSnapshot.data() ??
         {};
 
-      // Already completed/released/expired.
       if (
         reservationData.status !==
         "reserved"
@@ -1091,9 +1071,6 @@ async function releaseAICoins(
   );
 }
 
-/**
- * Converts a reservation into an actual coin deduction.
- */
 async function finalizeAICoins(
   uid,
   reservationId,
@@ -1531,7 +1508,6 @@ exports.generateReply = onCall(
           continue;
         }
 
-        // Prevent excessively large conversation items.
         const safeContent =
           itemContent.length > 5000
             ? itemContent.slice(
@@ -1666,9 +1642,6 @@ exports.generateReply = onCall(
           error,
         );
 
-        // Safe to attempt release.
-        // If finalization already succeeded,
-        // releaseAICoins does nothing.
         await releaseAICoins(
           uid,
           reservationId,
