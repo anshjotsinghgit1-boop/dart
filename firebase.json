@@ -11,8 +11,15 @@
       ]
     }
   ],
-  "firestore": {
+ "firestore": [
+  {
+    "database": "(default)",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  {
+    "database": "databaseforrizzaj",
+    "rules": "firestore.rules",
+    "indexes": "firestore.databaseforrizzaj.indexes.json"
   }
-}
+ ]
