@@ -11,48 +11,57 @@
 const AICREDITS_BASE_URL =
   'https://api.aicredits.in/v1/chat/completions';
 
-const AICREDITS_API_KEY =
-  process.env.AICREDITS_API_KEY;
-
-const TIERS = {
+const TIER_MODELS = {
   basic: {
     name: 'basic',
     cost: 1,
-    apiKey: AICREDITS_API_KEY,
-    baseUrl: AICREDITS_BASE_URL,
     model: 'openai/gpt-4o-mini',
   },
 
   smart: {
     name: 'smart',
     cost: 3,
-    apiKey: AICREDITS_API_KEY,
-    baseUrl: AICREDITS_BASE_URL,
     model: 'deepseek/deepseek-v3.2',
   },
 
   premium: {
     name: 'premium',
     cost: 6,
-    apiKey: AICREDITS_API_KEY,
-    baseUrl: AICREDITS_BASE_URL,
     model: 'gpt-5-mini',
   },
 };
 
 /**
+ * Get the API key at runtime.
+ *
+ * Firebase injects AICREDITS_API_KEY into the
+ * function environment when generateReply runs.
+ */
+function getApiKey() {
+  return process.env.AICREDITS_API_KEY || null;
+}
+
+/**
  * Get tier configuration by name.
  */
 function getTierConfig(tierName) {
-  const normalizedTier = tierName?.toLowerCase();
+  const normalizedTier =
+    tierName?.toLowerCase();
 
-  const tier = TIERS[normalizedTier];
+  const tier =
+    TIER_MODELS[normalizedTier];
 
   if (!tier) {
-    throw new Error(`Unknown tier: ${tierName}`);
+    throw new Error(
+      `Unknown tier: ${tierName}`
+    );
   }
 
-  return tier;
+  return {
+    ...tier,
+    apiKey: getApiKey(),
+    baseUrl: AICREDITS_BASE_URL,
+  };
 }
 
 /**
@@ -79,7 +88,8 @@ function getTierCost(tierName) {
  * Check whether a tier name is valid.
  */
 function isValidTier(tierName) {
-  const normalizedTier = tierName?.toLowerCase();
+  const normalizedTier =
+    tierName?.toLowerCase();
 
   return [
     'basic',
@@ -89,7 +99,7 @@ function isValidTier(tierName) {
 }
 
 module.exports = {
-  TIERS,
+  TIER_MODELS,
   getTierConfig,
   isTierConfigured,
   getTierCost,
