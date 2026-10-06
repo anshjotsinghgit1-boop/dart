@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cloud_functions/cloud_functions.dart';
 
 class AIReplyService {
@@ -8,6 +10,8 @@ class AIReplyService {
     region: functionsRegion,
   );
 
+  static final Random _random = Random.secure();
+
   /// Generate a reply using the secure server-side AI system.
   ///
   /// Tier costs:
@@ -17,16 +21,23 @@ class AIReplyService {
   ///
   /// Coins are reserved before the AI request and permanently
   /// deducted only when generation succeeds.
+  ///
+  /// A unique requestId is sent to the backend so repeated
+  /// submissions of the same request cannot accidentally cause
+  /// multiple coin deductions.
   static Future<Map<String, dynamic>> generateReply({
     required String tier,
     required String message,
     required String mood,
     List<Map<String, String>> conversation = const [],
   }) async {
+    final requestId = _generateRequestId();
+
     try {
       final result = await _functions
           .httpsCallable('generateReply')
           .call({
+        'requestId': requestId,
         'tier': tier.trim().toLowerCase(),
         'message': message.trim(),
         'mood': mood.trim(),
@@ -67,6 +78,19 @@ class AIReplyService {
     }
   }
 
+  /// Creates a unique ID for each generation request.
+  ///
+  /// No external package is required.
+  static String _generateRequestId() {
+    final timestamp =
+        DateTime.now().microsecondsSinceEpoch;
+
+    final randomPart =
+        _random.nextInt(1 << 32);
+
+    return '$timestamp-$randomPart';
+  }
+
   static String _handleFirebaseFunctionsError(
     FirebaseFunctionsException error,
   ) {
@@ -88,10 +112,8 @@ class AIReplyService {
       case 'unauthenticated':
         return 'Please log in first.';
 
-      case 'internal':
-        return message == 'Unknown error.'
-            ? 'AI generation failed. Please try again.'
-            : message;
+      case 'aborted':
+        return message;
 
       case 'deadline-exceeded':
         return 'AI request timed out. Please try again.';
@@ -101,6 +123,11 @@ class AIReplyService {
 
       case 'not-found':
         return message;
+
+      case 'internal':
+        return message == 'Unknown error.'
+            ? 'AI generation failed. Please try again.'
+            : message;
 
       default:
         return message;
