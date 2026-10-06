@@ -42,14 +42,14 @@ class _ReplierScreenState extends State<ReplierScreen>
       'cost': 3,
       'color': Color(0xFFFF9800),
       'description': 'Enhanced AI reply',
-      'enabled': false,
+      'enabled': true,
     },
     'premium': {
       'name': 'Premium',
       'cost': 6,
       'color': Color(0xFFE91E63),
       'description': 'Best AI reply',
-      'enabled': false,
+      'enabled': true,
     },
   };
 
@@ -105,7 +105,9 @@ class _ReplierScreenState extends State<ReplierScreen>
       final coins = await CoinsService.getCoins();
 
       if (mounted) {
-        setState(() => _coins = coins);
+        setState(() {
+          _coins = coins;
+        });
       }
     } catch (error) {
       if (mounted) {
@@ -115,6 +117,8 @@ class _ReplierScreenState extends State<ReplierScreen>
   }
 
   Future<void> _generate() async {
+    if (_isLoading) return;
+
     final msg = _controller.text.trim();
 
     if (msg.isEmpty) {
@@ -141,9 +145,7 @@ class _ReplierScreenState extends State<ReplierScreen>
     final tierCost = selectedTier['cost'] as int;
 
     if (_coins < tierCost) {
-      _showSnack(
-        '${selectedTier['name']} requires $tierCost coins. You have $_coins.',
-      );
+      _showNoCoinsDialog();
       return;
     }
 
@@ -161,7 +163,9 @@ class _ReplierScreenState extends State<ReplierScreen>
         tier: _selectedTier,
         message: msg,
         mood: widget.mood,
-        conversation: List<Map<String, String>>.from(_conversation),
+        conversation: List<Map<String, String>>.from(
+          _conversation,
+        ),
       );
 
       final aiReply = result['reply'] as String? ?? '';
@@ -205,7 +209,9 @@ class _ReplierScreenState extends State<ReplierScreen>
       }
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -217,13 +223,17 @@ class _ReplierScreenState extends State<ReplierScreen>
       ClipboardData(text: _reply),
     );
 
-    setState(() => _copied = true);
+    setState(() {
+      _copied = true;
+    });
 
     HapticFeedback.lightImpact();
 
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        setState(() => _copied = false);
+        setState(() {
+          _copied = false;
+        });
       }
     });
   }
@@ -242,7 +252,14 @@ class _ReplierScreenState extends State<ReplierScreen>
   }
 
   void _showNoCoinsDialog() {
-    setState(() => _isLoading = false);
+    if (_coins > 0) {
+      _showSnack(
+        '${_tierConfig[_selectedTier]?['name'] ?? 'This tier'} '
+        'requires ${_tierConfig[_selectedTier]?['cost'] ?? 1} coins. '
+        'You have $_coins.',
+      );
+      return;
+    }
 
     showDialog(
       context: context,
@@ -259,7 +276,8 @@ class _ReplierScreenState extends State<ReplierScreen>
           ),
         ),
         content: const Text(
-          'You\'ve used all your coins.\nGet more to keep generating rizz replies!',
+          'You\'ve used all your coins.\n'
+          'Get more to keep generating rizz replies!',
           style: TextStyle(
             color: Color(0xFF8A8AAA),
             height: 1.5,
@@ -458,6 +476,11 @@ class _ReplierScreenState extends State<ReplierScreen>
       ),
       child: TextField(
         controller: _controller,
+        onChanged: (_) {
+          if (mounted) {
+            setState(() {});
+          }
+        },
         style: const TextStyle(
           color: Colors.white,
           fontSize: 16,
@@ -468,7 +491,8 @@ class _ReplierScreenState extends State<ReplierScreen>
         decoration: InputDecoration(
           hintText:
               'Paste the message you received...\n\n'
-              'Tap "${_tierConfig[_selectedTier]?['name']}" to generate a reply!',
+              'Tap "${_tierConfig[_selectedTier]?['name']}" '
+              'to generate a reply!',
           hintStyle: TextStyle(
             color: Colors.white.withOpacity(0.4),
             fontSize: 14,
