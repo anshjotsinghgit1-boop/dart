@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../services/groq_service.dart';
+import '../services/ai_reply_service.dart';
 import '../services/coins_service.dart';
 import 'plans_screen.dart';
 
@@ -27,13 +27,32 @@ class _ReplierScreenState extends State<ReplierScreen>
   bool _isLoading = false;
   bool _copied = false;
   int _coins = 0;
+  String _selectedTier = 'basic';
 
-  // Short-term conversation memory.
-  //
-  // user = their message
-  // assistant = our generated reply
-  //
-  // We keep only the latest 8 messages to control token usage.
+  final Map<String, Map<String, dynamic>> _tierConfig = {
+    'basic': {
+      'name': 'Basic',
+      'cost': 1,
+      'color': Color(0xFF00BCD4),
+      'description': 'Standard AI reply',
+      'enabled': true,
+    },
+    'smart': {
+      'name': 'Smart',
+      'cost': 3,
+      'color': Color(0xFFFF9800),
+      'description': 'Enhanced AI reply',
+      'enabled': false,
+    },
+    'premium': {
+      'name': 'Premium',
+      'cost': 6,
+      'color': Color(0xFFE91E63),
+      'description': 'Best AI reply',
+      'enabled': false,
+    },
+  };
+
   final List<Map<String, String>> _conversation = [];
 
   late AnimationController _fadeCtrl;
@@ -103,8 +122,28 @@ class _ReplierScreenState extends State<ReplierScreen>
       return;
     }
 
-    if (_coins <= 0) {
-      _showNoCoinsDialog();
+    final selectedTier = _tierConfig[_selectedTier];
+
+    if (selectedTier == null) {
+      _showSnack('Invalid AI tier.');
+      return;
+    }
+
+    final isTierEnabled = selectedTier['enabled'] == true;
+
+    if (!isTierEnabled) {
+      _showSnack(
+        '${selectedTier['name']} is not available yet.',
+      );
+      return;
+    }
+
+    final tierCost = selectedTier['cost'] as int;
+
+    if (_coins < tierCost) {
+      _showSnack(
+        '${selectedTier['name']} requires $tierCost coins. You have $_coins.',
+      );
       return;
     }
 
@@ -118,28 +157,22 @@ class _ReplierScreenState extends State<ReplierScreen>
     _slideCtrl.reset();
 
     try {
-      final spent = await CoinsService.spendCoin();
-
-      if (!spent) {
-        _showNoCoinsDialog();
-        return;
-      }
-
-      // Send the recent conversation to the AI.
-      //
-      // IMPORTANT:
-      // The current message is NOT added to _conversation yet.
-      // GroqService adds it to the API request separately.
-      final result = await GroqService.generateReply(
+      final result = await AIReplyService.generateReply(
+        tier: _selectedTier,
         message: msg,
         mood: widget.mood,
         conversation: List<Map<String, String>>.from(_conversation),
       );
 
-      // Only save the conversation AFTER a successful AI response.
-      //
-      // This prevents failed requests from polluting the conversation
-      // history.
+      final aiReply = result['reply'] as String? ?? '';
+
+      final remainingCoins =
+          (result['remainingCoins'] as num?)?.toInt() ?? _coins;
+
+      if (aiReply.trim().isEmpty) {
+        throw Exception('AI returned an empty reply.');
+      }
+
       _conversation.add({
         'role': 'user',
         'content': msg,
@@ -147,18 +180,9 @@ class _ReplierScreenState extends State<ReplierScreen>
 
       _conversation.add({
         'role': 'assistant',
-        'content': result,
+        'content': aiReply,
       });
 
-      // Keep only the latest 8 messages.
-      //
-      // Example:
-      // message 1
-      // message 2
-      // ...
-      // message 8
-      //
-      // Older messages are automatically removed.
       if (_conversation.length > 8) {
         _conversation.removeRange(
           0,
@@ -166,10 +190,11 @@ class _ReplierScreenState extends State<ReplierScreen>
         );
       }
 
-      await _loadCoins();
-
       if (mounted) {
-        setState(() => _reply = result);
+        setState(() {
+          _reply = aiReply;
+          _coins = remainingCoins;
+        });
 
         _fadeCtrl.forward();
         _slideCtrl.forward();
@@ -313,6 +338,8 @@ class _ReplierScreenState extends State<ReplierScreen>
                       const SizedBox(height: 24),
                       _buildInputArea(),
                       const SizedBox(height: 20),
+                      _buildTierSelector(),
+                      const SizedBox(height: 20),
                       _buildGenerateButton(),
                       if (_isLoading) ...[
                         const SizedBox(height: 40),
@@ -362,25 +389,25 @@ class _ReplierScreenState extends State<ReplierScreen>
               vertical: 6,
             ),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [
-                  Color(0xFFFF5B63),
-                  Color(0xFF9B22F9),
-                ],
+              color: const Color(0xFFFF5B63).withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: const Color(0xFFFF5B63),
+                width: 1,
               ),
-              borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
                   '🪙',
-                  style: TextStyle(fontSize: 13),
+                  style: TextStyle(fontSize: 14),
                 ),
                 const SizedBox(width: 4),
                 Text(
                   '$_coins',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: Color(0xFFFF5B63),
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -396,162 +423,235 @@ class _ReplierScreenState extends State<ReplierScreen>
   Widget _buildMoodBadge() {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: 20,
+        horizontal: 16,
         vertical: 12,
       ),
       decoration: BoxDecoration(
         color: const Color(0xFFFF5B63).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFFF5B63).withOpacity(0.35),
+          color: const Color(0xFFFF5B63).withOpacity(0.3),
+          width: 1,
         ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            widget.emoji,
-            style: const TextStyle(fontSize: 22),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${widget.mood} Mode',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-              const Text(
-                'AI will match this vibe',
-                style: TextStyle(
-                  color: Color(0xFF8A8AAA),
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-        ],
+      child: Text(
+        'Mood: ${widget.mood.toUpperCase()}',
+        style: const TextStyle(
+          color: Color(0xFFFF5B63),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 1,
+        ),
       ),
     );
   }
 
   Widget _buildInputArea() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ),
+      ),
+      child: TextField(
+        controller: _controller,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          height: 1.4,
+        ),
+        minLines: 4,
+        maxLines: 6,
+        decoration: InputDecoration(
+          hintText:
+              'Paste the message you received...\n\n'
+              'Tap "${_tierConfig[_selectedTier]?['name']}" to generate a reply!',
+          hintStyle: TextStyle(
+            color: Colors.white.withOpacity(0.4),
+            fontSize: 14,
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTierSelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Paste Their Message',
+          'Choose AI Tier',
           style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Drop what they sent you below',
-          style: TextStyle(
-            color: Color(0xFF8A8AAA),
+            color: Colors.white70,
             fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
           ),
         ),
         const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.1),
-            ),
-          ),
-          child: TextField(
-            controller: _controller,
-            maxLines: 5,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              height: 1.5,
-            ),
-            decoration: InputDecoration(
-              hintText:
-                  'e.g. "hey, what are you up to tonight?" 😏',
-              hintStyle: TextStyle(
-                color: Colors.white.withOpacity(0.3),
-                fontSize: 14,
-              ),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.all(18),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  Icons.clear_rounded,
-                  color: Colors.white.withOpacity(0.3),
-                  size: 18,
+        Row(
+          children: _tierConfig.entries.map((entry) {
+            final tierName = entry.key;
+            final tierData = entry.value;
+
+            final isSelected = _selectedTier == tierName;
+            final isEnabled = tierData['enabled'] == true;
+
+            final cost = tierData['cost'] as int;
+            final displayName = tierData['name'] as String;
+            final color = tierData['color'] as Color;
+
+            return Expanded(
+              child: GestureDetector(
+                onTap: !isEnabled
+                    ? null
+                    : () {
+                        setState(() {
+                          _selectedTier = tierName;
+                        });
+                      },
+                child: Opacity(
+                  opacity: isEnabled ? 1.0 : 0.45,
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? color.withOpacity(0.2)
+                          : Colors.white.withOpacity(0.03),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected
+                            ? color
+                            : Colors.white.withOpacity(0.1),
+                        width: isSelected ? 2 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          displayName,
+                          style: TextStyle(
+                            color: isSelected
+                                ? color
+                                : Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$cost 🪙',
+                          style: TextStyle(
+                            color: isSelected
+                                ? color
+                                : Colors.white.withOpacity(0.6),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (!isEnabled) ...[
+                          const SizedBox(height: 3),
+                          const Text(
+                            'Soon',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-                onPressed: () => _controller.clear(),
               ),
-            ),
-          ),
+            );
+          }).toList(),
         ),
       ],
     );
   }
 
   Widget _buildGenerateButton() {
-    return GestureDetector(
-      onTap: _isLoading ? null : _generate,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: double.infinity,
-        height: 56,
-        decoration: BoxDecoration(
-          gradient: _isLoading
-              ? LinearGradient(
-                  colors: [
-                    Colors.grey.shade800,
-                    Colors.grey.shade700,
-                  ],
-                )
-              : const LinearGradient(
-                  colors: [
-                    Color(0xFFFF5B63),
-                    Color(0xFF9B22F9),
-                  ],
-                ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: _isLoading
-              ? []
-              : [
-                  BoxShadow(
-                    color: const Color(0xFFFF5B63).withOpacity(0.4),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
+    final tierData = _tierConfig[_selectedTier];
+
+    final tierName =
+        tierData?['name'] as String? ?? 'Basic';
+
+    final tierCost =
+        tierData?['cost'] as int? ?? 1;
+
+    final isTierEnabled =
+        tierData?['enabled'] == true;
+
+    final isEnabled =
+        !_isLoading &&
+        isTierEnabled &&
+        _coins >= tierCost &&
+        _controller.text.trim().isNotEmpty;
+
+    final color =
+        tierData?['color'] as Color? ??
+        const Color(0xFF00BCD4);
+
+    return Container(
+      width: double.infinity,
+      height: 52,
+      decoration: BoxDecoration(
+        gradient: isEnabled
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  color,
+                  color.withOpacity(0.7),
                 ],
-        ),
-        child: Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '✨',
-                style: TextStyle(fontSize: 18),
+              )
+            : LinearGradient(
+                colors: [
+                  Colors.grey.withOpacity(0.3),
+                  Colors.grey.withOpacity(0.2),
+                ],
               ),
-              const SizedBox(width: 10),
-              Text(
-                _isLoading
-                    ? 'Generating...'
-                    : 'Generate ${widget.mood} Reply',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: isEnabled
+            ? [
+                BoxShadow(
+                  color: color.withOpacity(0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
+              ]
+            : [],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isEnabled ? _generate : null,
+          borderRadius: BorderRadius.circular(14),
+          child: Center(
+            child: Text(
+              _isLoading
+                  ? 'Generating $tierName Reply...'
+                  : '✨ Generate $tierName Reply ($tierCost 🪙)',
+              style: TextStyle(
+                color: isEnabled
+                    ? Colors.white
+                    : Colors.white.withOpacity(0.5),
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+                letterSpacing: 0.5,
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -561,49 +661,23 @@ class _ReplierScreenState extends State<ReplierScreen>
   Widget _buildLoadingWidget() {
     return Column(
       children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFF2A0A4A),
-                Color(0xFF1A1035),
-              ],
+        SizedBox(
+          width: 50,
+          height: 50,
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(
+              const Color(0xFFFF5B63).withOpacity(0.7),
             ),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: const Color(0xFFFF5B63).withOpacity(0.4),
-              width: 2,
-            ),
-          ),
-          child: const Center(
-            child: SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  Color(0xFFFF5B63),
-                ),
-              ),
-            ),
+            strokeWidth: 3,
           ),
         ),
         const SizedBox(height: 16),
-        const Text(
-          'Crafting your perfect rizz...',
+        Text(
+          'Generating your perfect reply...',
           style: TextStyle(
-            color: Color(0xFF8A8AAA),
+            color: Colors.white.withOpacity(0.7),
             fontSize: 14,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'AI is thinking 🧠',
-          style: TextStyle(
-            color: Color(0xFF8A8AAA),
-            fontSize: 12,
+            fontStyle: FontStyle.italic,
           ),
         ),
       ],
@@ -611,160 +685,79 @@ class _ReplierScreenState extends State<ReplierScreen>
   }
 
   Widget _buildReplyCard() {
-    return FadeTransition(
-      opacity: _fadeAnim,
+    return ScaleTransition(
+      scale: _fadeAnim,
       child: SlideTransition(
         position: _slideAnim,
         child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF2A0A4A),
-                Color(0xFF1A1035),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(22),
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: const Color(0xFFFF5B63).withOpacity(0.35),
-              width: 1.5,
+              color: const Color(0xFFFF5B63).withOpacity(0.3),
+              width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF9B22F9).withOpacity(0.2),
-                blurRadius: 24,
+                color: const Color(0xFFFF5B63).withOpacity(0.1),
+                blurRadius: 16,
                 offset: const Offset(0, 8),
               ),
             ],
           ),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF5B63).withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color:
-                            const Color(0xFFFF5B63).withOpacity(0.4),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          widget.emoji,
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        const SizedBox(width: 5),
-                        const Text(
-                          'Your Rizz Reply',
-                          style: TextStyle(
-                            color: Color(0xFFFF5B63),
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                  const Text(
+                    '✨ Your Rizz Reply',
+                    style: TextStyle(
+                      color: Color(0xFFFF5B63),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  const Spacer(),
                   GestureDetector(
                     onTap: _copyReply,
-                    child: AnimatedContainer(
-                      duration:
-                          const Duration(milliseconds: 200),
+                    child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
+                        horizontal: 12,
+                        vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: _copied
-                            ? const Color(0xFF4CAF50)
-                                .withOpacity(0.15)
-                            : Colors.white.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(12),
+                        color: const Color(0xFFFF5B63).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: _copied
-                              ? const Color(0xFF4CAF50)
-                                  .withOpacity(0.5)
-                              : Colors.white.withOpacity(0.1),
+                          color: const Color(0xFFFF5B63).withOpacity(0.3),
+                          width: 1,
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            _copied
-                                ? Icons.check_rounded
-                                : Icons.copy_rounded,
-                            color: _copied
-                                ? const Color(0xFF4CAF50)
-                                : Colors.white70,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _copied ? 'Copied!' : 'Copy',
-                            style: TextStyle(
-                              color: _copied
-                                  ? const Color(0xFF4CAF50)
-                                  : Colors.white70,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        _copied ? '✓ Copied' : 'Copy',
+                        style: TextStyle(
+                          color: _copied
+                              ? Colors.green
+                              : const Color(0xFFFF5B63),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              const Divider(
-                color: Color(0x22FFFFFF),
-                height: 1,
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
                 _reply,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
                   height: 1.6,
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _isLoading ? null : _generate,
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(
-                      color:
-                          const Color(0xFFFF5B63).withOpacity(0.5),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                    ),
-                  ),
-                  child: const Text(
-                    'Try Another Reply 🔄',
-                    style: TextStyle(
-                      color: Color(0xFFFF5B63),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
