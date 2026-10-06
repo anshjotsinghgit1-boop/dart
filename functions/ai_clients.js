@@ -1,7 +1,12 @@
 /**
  * AI Client Module
  *
- * Handles API calls to AI providers for reply generation.
+ * Handles API calls to AICredits for all AI reply tiers.
+ *
+ * The selected model comes from ai_reply_tiers.js:
+ * - Basic   → GPT-4o-mini
+ * - Smart   → DeepSeek V3.2
+ * - Premium → GPT-5-mini
  */
 
 const { HttpsError } = require('firebase-functions/v2/https');
@@ -70,23 +75,28 @@ async function callAI(tier, messages) {
         let data = null;
 
         try {
-          data = responseText ? JSON.parse(responseText) : null;
+          data = responseText
+              ? JSON.parse(responseText)
+              : null;
         } catch (_) {
           data = null;
         }
 
         // SUCCESS
-        if (response.status === 200) {
-          const content = data?.choices?.[0]?.message?.content;
+        if (response.ok) {
+          const content =
+              data?.choices?.[0]?.message?.content;
 
           if (
             typeof content === 'string' &&
-            content.trim().length > 0
+            content.trim().isNotEmpty
           ) {
             return content.trim();
           }
 
-          throw new Error('AI returned an empty response.');
+          throw new Error(
+            'AI returned an empty response.'
+          );
         }
 
         // RATE LIMIT
@@ -110,7 +120,7 @@ async function callAI(tier, messages) {
           );
         }
 
-        // INSUFFICIENT PROVIDER CREDITS
+        // PROVIDER BALANCE
         if (response.status === 402) {
           throw new HttpsError(
             'resource-exhausted',
@@ -122,16 +132,15 @@ async function callAI(tier, messages) {
         if (response.status === 404) {
           throw new HttpsError(
             'failed-precondition',
-            `AI model not found: ${tier.model}`
+            `AI model is unavailable: ${tier.model}`
           );
         }
 
-        // OTHER API ERROR
-        const providerMessage =
-          data?.error?.message ||
-          `AI provider returned HTTP ${response.status}.`;
-
-        throw new Error(providerMessage);
+        // OTHER PROVIDER ERROR
+        throw new HttpsError(
+          'unavailable',
+          'AI provider returned an error. Please try again.'
+        );
       } finally {
         clearTimeout(timeout);
       }
@@ -143,13 +152,13 @@ async function callAI(tier, messages) {
       if (error?.name === 'AbortError') {
         throw new HttpsError(
           'deadline-exceeded',
-          'AI request timed out after 45 seconds.'
+          'AI request timed out. Please try again.'
         );
       }
 
       throw new HttpsError(
         'unavailable',
-        error?.message || 'Unable to reach AI provider.'
+        'Unable to reach the AI provider. Please try again.'
       );
     }
   }
