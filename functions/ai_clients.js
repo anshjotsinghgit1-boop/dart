@@ -3,7 +3,7 @@
  *
  * Handles API calls to AICredits for all AI reply tiers.
  *
- * The selected model comes from ai_reply_tiers.js:
+ * Models are selected by ai_reply_tiers.js:
  * - Basic   → GPT-4o-mini
  * - Smart   → DeepSeek V3.2
  * - Premium → GPT-5-mini
@@ -14,6 +14,13 @@ const { HttpsError } = require('firebase-functions/v2/https');
 const REQUEST_TIMEOUT_MS = 45000;
 const MAX_RETRIES = 2;
 
+/**
+ * Send a request to the configured AI provider.
+ *
+ * @param {object} tier - AI tier configuration.
+ * @param {Array<object>} messages - Chat messages.
+ * @returns {Promise<string>} Generated AI reply.
+ */
 async function callAI(tier, messages) {
   if (!tier || typeof tier !== 'object') {
     throw new HttpsError(
@@ -54,11 +61,13 @@ async function callAI(tier, messages) {
       try {
         const response = await fetch(tier.baseUrl, {
           method: 'POST',
+
           headers: {
             Authorization: `Bearer ${tier.apiKey}`,
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
+
           body: JSON.stringify({
             model: tier.model,
             messages,
@@ -67,6 +76,7 @@ async function callAI(tier, messages) {
             frequency_penalty: 0.2,
             presence_penalty: 0.0,
           }),
+
           signal: controller.signal,
         });
 
@@ -76,20 +86,21 @@ async function callAI(tier, messages) {
 
         try {
           data = responseText
-              ? JSON.parse(responseText)
-              : null;
+            ? JSON.parse(responseText)
+            : null;
         } catch (_) {
           data = null;
         }
 
         // SUCCESS
+        // response.ok is true for HTTP 200-299.
         if (response.ok) {
           const content =
-              data?.choices?.[0]?.message?.content;
+            data?.choices?.[0]?.message?.content;
 
           if (
             typeof content === 'string' &&
-            content.trim().isNotEmpty
+            content.trim().length > 0
           ) {
             return content.trim();
           }
@@ -145,10 +156,12 @@ async function callAI(tier, messages) {
         clearTimeout(timeout);
       }
     } catch (error) {
+      // Preserve intentional Firebase errors.
       if (error instanceof HttpsError) {
         throw error;
       }
 
+      // Request timeout.
       if (error?.name === 'AbortError') {
         throw new HttpsError(
           'deadline-exceeded',
@@ -156,6 +169,7 @@ async function callAI(tier, messages) {
         );
       }
 
+      // Network / unexpected provider error.
       throw new HttpsError(
         'unavailable',
         'Unable to reach the AI provider. Please try again.'
@@ -169,8 +183,16 @@ async function callAI(tier, messages) {
   );
 }
 
+/**
+ * Wait before retrying a request.
+ *
+ * @param {number} ms - Delay in milliseconds.
+ * @returns {Promise<void>}
+ */
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 module.exports = {
