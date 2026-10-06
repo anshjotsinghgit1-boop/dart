@@ -6,7 +6,7 @@ const {
   Timestamp,
 } = require("firebase-admin/firestore");
 const { google } = require("googleapis");
-const { createHash } = require("crypto");
+const { createHash, randomUUID } = require("crypto");
 
 const {
   getTierConfig,
@@ -21,7 +21,7 @@ const {
   cleanReply,
 } = require("./reply_prompt");
 
-const { callAI } = require("./ai_client");
+const { callAI } = require("./ai_clients");
 
 initializeApp();
 
@@ -37,8 +37,18 @@ const COINS_PER_WEEK = 150;
 
 const FUNCTIONS_REGION = "asia-south1";
 
+// AI reservation normally only exists for the duration of one AI request.
+// 2 minutes gives enough room for the 45-second AI timeout plus network delay.
+const AI_RESERVATION_TTL_MS = 2 * 60 * 1000;
+
 function userRef(uid) {
   return db.collection("users").doc(uid);
+}
+
+function aiReservationRef(uid, reservationId) {
+  return userRef(uid)
+    .collection("aiReservations")
+    .doc(reservationId);
 }
 
 function requireUser(request) {
@@ -191,6 +201,7 @@ async function applyPurchase({
     } else {
       tx.set(profile, {
         coins: STARTING_COINS + coins,
+        reservedCoins: 0,
         createdAt:
           FieldValue.serverTimestamp(),
         updatedAt:
@@ -264,6 +275,7 @@ exports.ensureUserProfile = onCall(
         if (!snapshot.exists) {
           tx.set(ref, {
             coins: STARTING_COINS,
+            reservedCoins: 0,
             createdAt:
               FieldValue.serverTimestamp(),
             updatedAt:
@@ -579,6 +591,283 @@ exports.verifyGooglePlayPurchase = onCall(
 );
 
 // ============================================================================
+// AI RESERVATION HELPERS
+// ============================================================================
+
+async function reserveAICoins(uid, coinCost) {
+  const profile = userRef(uid);
+  const reservationId = randomUUID();
+  const reservation = aiReservationRef(
+    uid,
+    reservationId,
+  );
+
+  const expiresAt = new Date(
+    Date.now() + AI_RESERVATION_TTL_MS,
+  );
+
+  const result = await db.runTransaction(
+    async (tx) => {
+      const snapshot = await tx.get(profile);
+
+      if (!snapshot.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          "User profile does not exist.",
+        );
+      }
+
+      const data = snapshot.data() ?? {};
+
+      const coins = Number(
+        data.coins ?? 0,
+      );
+
+      const reservedCoins = Math.max(
+        Number(data.reservedCoins ?? 0),
+        0,
+      );
+
+      const availableCoins =
+        coins - reservedCoins;
+
+      if (availableCoins < coinCost) {
+        throw new HttpsError(
+          "resource-exhausted",
+          `Insufficient coins. Need ${coinCost}, have ${Math.max(
+            availableCoins,
+            0,
+          )}.`,
+        );
+      }
+
+      tx.update(profile, {
+        reservedCoins:
+          reservedCoins + coinCost,
+        updatedAt:
+          FieldValue.serverTimestamp(),
+      });
+
+      tx.create(reservation, {
+        uid,
+        cost: coinCost,
+        status: "reserved",
+        createdAt:
+          FieldValue.serverTimestamp(),
+        expiresAt:
+          Timestamp.fromDate(expiresAt),
+      });
+
+      return {
+        reservationId,
+        remainingAvailableCoins:
+          availableCoins - coinCost,
+      };
+    },
+  );
+
+  return result;
+}
+
+async function releaseAICoins(
+  uid,
+  reservationId,
+) {
+  const profile = userRef(uid);
+  const reservation =
+    aiReservationRef(
+      uid,
+      reservationId,
+    );
+
+  await db.runTransaction(
+    async (tx) => {
+      const reservationSnapshot =
+        await tx.get(reservation);
+
+      if (!reservationSnapshot.exists) {
+        return;
+      }
+
+      const reservationData =
+        reservationSnapshot.data() ?? {};
+
+      if (
+        reservationData.status !==
+        "reserved"
+      ) {
+        return;
+      }
+
+      const profileSnapshot =
+        await tx.get(profile);
+
+      if (!profileSnapshot.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          "User profile does not exist.",
+        );
+      }
+
+      const profileData =
+        profileSnapshot.data() ?? {};
+
+      const reservedCoins = Math.max(
+        Number(
+          profileData.reservedCoins ?? 0,
+        ),
+        0,
+      );
+
+      const cost = Number(
+        reservationData.cost ?? 0,
+      );
+
+      tx.update(profile, {
+        reservedCoins: Math.max(
+          reservedCoins - cost,
+          0,
+        ),
+        updatedAt:
+          FieldValue.serverTimestamp(),
+      });
+
+      tx.update(reservation, {
+        status: "released",
+        releasedAt:
+          FieldValue.serverTimestamp(),
+      });
+    },
+  );
+}
+
+async function finalizeAICoins(
+  uid,
+  reservationId,
+) {
+  const profile = userRef(uid);
+  const reservation =
+    aiReservationRef(
+      uid,
+      reservationId,
+    );
+
+  return db.runTransaction(
+    async (tx) => {
+      const reservationSnapshot =
+        await tx.get(reservation);
+
+      if (!reservationSnapshot.exists) {
+        throw new HttpsError(
+          "not-found",
+          "AI reservation was not found.",
+        );
+      }
+
+      const reservationData =
+        reservationSnapshot.data() ?? {};
+
+      // Already finalized. This prevents double charging.
+      if (
+        reservationData.status ===
+        "completed"
+      ) {
+        const profileSnapshot =
+          await tx.get(profile);
+
+        const profileData =
+          profileSnapshot.data() ?? {};
+
+        return {
+          remainingCoins: Number(
+            profileData.coins ?? 0,
+          ),
+          costDeducted: Number(
+            reservationData.cost ?? 0,
+          ),
+          alreadyCompleted: true,
+        };
+      }
+
+      if (
+        reservationData.status !==
+        "reserved"
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "AI reservation is no longer active.",
+        );
+      }
+
+      const profileSnapshot =
+        await tx.get(profile);
+
+      if (!profileSnapshot.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          "User profile does not exist.",
+        );
+      }
+
+      const profileData =
+        profileSnapshot.data() ?? {};
+
+      const currentCoins = Number(
+        profileData.coins ?? 0,
+      );
+
+      const reservedCoins = Math.max(
+        Number(
+          profileData.reservedCoins ?? 0,
+        ),
+        0,
+      );
+
+      const cost = Number(
+        reservationData.cost ?? 0,
+      );
+
+      if (
+        cost <= 0 ||
+        reservedCoins < cost ||
+        currentCoins < cost
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "AI reservation cannot be finalized.",
+        );
+      }
+
+      const newCoins =
+        currentCoins - cost;
+
+      const newReservedCoins =
+        reservedCoins - cost;
+
+      tx.update(profile, {
+        coins: newCoins,
+        reservedCoins:
+          newReservedCoins,
+        updatedAt:
+          FieldValue.serverTimestamp(),
+      });
+
+      tx.update(reservation, {
+        status: "completed",
+        completedAt:
+          FieldValue.serverTimestamp(),
+      });
+
+      return {
+        remainingCoins: newCoins,
+        costDeducted: cost,
+        alreadyCompleted: false,
+      };
+    },
+  );
+}
+
+// ============================================================================
 // 3-TIER AI REPLY GENERATION
 // ============================================================================
 
@@ -589,12 +878,11 @@ exports.generateReply = onCall(
       "AICREDITS_API_KEY",
     ],
   },
-
   async (request) => {
     const uid = requireUser(request);
 
     const tier = String(
-      request.data?.tier ?? "",
+      request.data?.tier ?? "basic",
     )
       .trim()
       .toLowerCase();
@@ -615,13 +903,13 @@ exports.generateReply = onCall(
         : [];
 
     // ----------------------------------------------------------
-    // Validate tier
+    // VALIDATE TIER
     // ----------------------------------------------------------
 
     if (!isValidTier(tier)) {
       throw new HttpsError(
         "invalid-argument",
-        "Invalid AI tier.",
+        `Invalid AI tier: ${tier}. Must be 'basic', 'smart', or 'premium'.`,
       );
     }
 
@@ -641,9 +929,7 @@ exports.generateReply = onCall(
       );
     }
 
-    if (
-      !isTierConfigured(tierConfig)
-    ) {
+    if (!isTierConfigured(tierConfig)) {
       throw new HttpsError(
         "failed-precondition",
         `${tier} tier is not configured on the server.`,
@@ -651,7 +937,7 @@ exports.generateReply = onCall(
     }
 
     // ----------------------------------------------------------
-    // Validate message
+    // VALIDATE MESSAGE
     // ----------------------------------------------------------
 
     if (!message) {
@@ -664,414 +950,257 @@ exports.generateReply = onCall(
     if (message.length > 5000) {
       throw new HttpsError(
         "invalid-argument",
-        "Message is too long.",
+        "Message is too long (max 5000 chars).",
       );
     }
 
     // ----------------------------------------------------------
-    // Reserve coins
-    //
-    // We do NOT reduce the actual "coins" balance here.
-    // We temporarily reserve the coins so two simultaneous
-    // requests cannot both spend the same balance.
+    // RESERVE COINS BEFORE AI CALL
     // ----------------------------------------------------------
 
-    const profile = userRef(uid);
-
-    const reservationId =
-      `${uid}_${Date.now()}_${Math.random()
-        .toString(36)
-        .slice(2)}`;
-
-    const reservationRef = db
-      .collection("aiReplyReservations")
-      .doc(reservationId);
-
-    await db.runTransaction(
-      async (tx) => {
-        const snapshot =
-          await tx.get(profile);
-
-        const data =
-          snapshot.data() ?? {};
-
-        const currentCoins =
-          Number(data.coins ?? 0);
-
-        const reservedCoins =
-          Number(
-            data.reservedCoins ?? 0,
-          );
-
-        const availableCoins =
-          currentCoins -
-          reservedCoins;
-
-        if (
-          availableCoins <
-          coinCost
-        ) {
-          throw new HttpsError(
-            "resource-exhausted",
-            `Insufficient coins. You need ${coinCost} coins for ${tier}.`,
-          );
-        }
-
-        tx.set(
-          reservationRef,
-          {
-            uid,
-            tier,
-            cost: coinCost,
-            status: "reserved",
-            createdAt:
-              FieldValue.serverTimestamp(),
-          },
-        );
-
-        tx.set(
-          profile,
-          {
-            reservedCoins:
-              reservedCoins +
-              coinCost,
-            updatedAt:
-              FieldValue.serverTimestamp(),
-          },
-          { merge: true },
-        );
-      },
-    );
-
-    // ----------------------------------------------------------
-    // Build prompt
-    // ----------------------------------------------------------
-
-    const hinglish =
-      isHinglish(message);
-
-    const systemPrompt =
-      getSystemPrompt(
-        mood,
-        hinglish,
-      );
-
-    const messages = [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-    ];
-
-    const recentConversation =
-      conversation.length > 8
-        ? conversation.slice(-8)
-        : conversation;
-
-    for (
-      const item of recentConversation
-    ) {
-      if (!item) continue;
-
-      const role = item.role;
-
-      const content = String(
-        item.content ?? "",
-      ).trim();
-
-      if (!content) continue;
-
-      if (
-        role !== "user" &&
-        role !== "assistant"
-      ) {
-        continue;
-      }
-
-      messages.push({
-        role,
-        content,
-      });
-    }
-
-    messages.push({
-      role: "user",
-      content: message,
-    });
-
-    // ----------------------------------------------------------
-    // Call AI
-    // ----------------------------------------------------------
-
-    let aiReply;
+    let reservationId;
 
     try {
-      aiReply =
-        await callAI(
-          tierConfig,
-          messages,
+      const reservation =
+        await reserveAICoins(
+          uid,
+          coinCost,
         );
+
+      reservationId =
+        reservation.reservationId;
     } catch (error) {
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+
       console.error(
-        `AI call failed for ${tier} tier:`,
+        "AI coin reservation failed:",
         error,
       );
 
-      // Release reservation.
-      await db.runTransaction(
-        async (tx) => {
-          const profileSnapshot =
-            await tx.get(profile);
-
-          const reservationSnapshot =
-            await tx.get(
-              reservationRef,
-            );
-
-          if (
-            !reservationSnapshot.exists
-          ) {
-            return;
-          }
-
-          const profileData =
-            profileSnapshot.data() ??
-            {};
-
-          const reservedCoins =
-            Number(
-              profileData.reservedCoins ??
-                0,
-            );
-
-          const reservationData =
-            reservationSnapshot.data() ??
-            {};
-
-          const reservationCost =
-            Number(
-              reservationData.cost ??
-                coinCost,
-            );
-
-          tx.set(
-            profile,
-            {
-              reservedCoins:
-                Math.max(
-                  0,
-                  reservedCoins -
-                    reservationCost,
-                ),
-              updatedAt:
-                FieldValue.serverTimestamp(),
-            },
-            { merge: true },
-          );
-
-          tx.update(
-            reservationRef,
-            {
-              status: "released",
-              releasedAt:
-                FieldValue.serverTimestamp(),
-            },
-          );
-        },
-      );
-
       throw new HttpsError(
         "internal",
-        "Failed to generate reply. Please try again.",
+        "Could not reserve coins.",
       );
     }
 
     // ----------------------------------------------------------
-    // Clean AI reply
+    // BUILD PROMPT
     // ----------------------------------------------------------
 
-    const cleanedReply =
-      cleanReply(aiReply);
+    try {
+      const hinglish =
+        isHinglish(message);
 
-    if (!cleanedReply) {
-      // Release reservation.
-      await db.runTransaction(
-        async (tx) => {
-          const profileSnapshot =
-            await tx.get(profile);
+      const systemPrompt =
+        getSystemPrompt(
+          mood,
+          hinglish,
+        );
 
-          const reservationSnapshot =
-            await tx.get(
-              reservationRef,
+      const messages = [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+      ];
+
+      const recentConversation =
+        conversation.length > 8
+          ? conversation.slice(-8)
+          : conversation;
+
+      for (const item of recentConversation) {
+        if (!item) continue;
+
+        const itemRole =
+          item.role;
+
+        const itemContent =
+          String(
+            item.content ?? "",
+          ).trim();
+
+        if (!itemContent) continue;
+
+        if (
+          itemRole !== "user" &&
+          itemRole !== "assistant"
+        ) {
+          continue;
+        }
+
+        messages.push({
+          role: itemRole,
+          content: itemContent,
+        });
+      }
+
+      messages.push({
+        role: "user",
+        content: message,
+      });
+
+      // --------------------------------------------------------
+      // CALL AI
+      // --------------------------------------------------------
+
+      let aiReply;
+
+      try {
+        aiReply = await callAI(
+          tierConfig,
+          messages,
+        );
+      } catch (error) {
+        console.error(
+          `AI call failed for ${tier} tier:`,
+          error,
+        );
+
+        await releaseAICoins(
+          uid,
+          reservationId,
+        ).catch(
+          (releaseError) => {
+            console.error(
+              "Failed to release AI reservation:",
+              releaseError,
             );
+          },
+        );
 
-          if (
-            !reservationSnapshot.exists
-          ) {
-            return;
-          }
+        throw error;
+      }
 
-          const profileData =
-            profileSnapshot.data() ??
-            {};
+      // --------------------------------------------------------
+      // CLEAN REPLY
+      // --------------------------------------------------------
 
-          const reservedCoins =
-            Number(
-              profileData.reservedCoins ??
-                0,
+      let cleanedReply;
+
+      try {
+        cleanedReply =
+          cleanReply(aiReply);
+      } catch (error) {
+        console.error(
+          "AI reply cleaning failed:",
+          error,
+        );
+
+        await releaseAICoins(
+          uid,
+          reservationId,
+        ).catch(
+          (releaseError) => {
+            console.error(
+              "Failed to release AI reservation:",
+              releaseError,
             );
+          },
+        );
 
-          tx.set(
-            profile,
-            {
-              reservedCoins:
-                Math.max(
-                  0,
-                  reservedCoins -
-                    coinCost,
-                ),
-              updatedAt:
-                FieldValue.serverTimestamp(),
-            },
-            { merge: true },
+        throw new HttpsError(
+          "internal",
+          "AI returned an invalid reply.",
+        );
+      }
+
+      if (!cleanedReply) {
+        await releaseAICoins(
+          uid,
+          reservationId,
+        ).catch(
+          (releaseError) => {
+            console.error(
+              "Failed to release AI reservation:",
+              releaseError,
+            );
+          },
+        );
+
+        throw new HttpsError(
+          "internal",
+          "AI returned an empty reply.",
+        );
+      }
+
+      // --------------------------------------------------------
+      // FINALIZE PAYMENT
+      // --------------------------------------------------------
+
+      let paymentResult;
+
+      try {
+        paymentResult =
+          await finalizeAICoins(
+            uid,
+            reservationId,
           );
+      } catch (error) {
+        console.error(
+          "AI coin finalization failed:",
+          error,
+        );
 
-          tx.update(
-            reservationRef,
-            {
-              status: "released",
-              releasedAt:
-                FieldValue.serverTimestamp(),
-            },
+        // Safe to attempt release:
+        // if finalization already committed,
+        // release sees status "completed" and does nothing.
+        await releaseAICoins(
+          uid,
+          reservationId,
+        ).catch(
+          (releaseError) => {
+            console.error(
+              "Failed to release AI reservation after finalization error:",
+              releaseError,
+            );
+          },
+        );
+
+        throw new HttpsError(
+          "internal",
+          "Could not finalize the AI reply payment.",
+        );
+      }
+
+      return {
+        reply: cleanedReply,
+        remainingCoins:
+          paymentResult.remainingCoins,
+        tier,
+        costDeducted:
+          paymentResult.costDeducted,
+      };
+    } catch (error) {
+      // If something unexpected happens after reservation
+      // but before successful finalization, release the reservation.
+      await releaseAICoins(
+        uid,
+        reservationId,
+      ).catch(
+        (releaseError) => {
+          console.error(
+            "Failed to release AI reservation:",
+            releaseError,
           );
         },
+      );
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+
+      console.error(
+        "Unexpected generateReply error:",
+        error,
       );
 
       throw new HttpsError(
         "internal",
-        "AI returned an empty reply.",
+        "Failed to generate reply.",
       );
     }
-
-    // ----------------------------------------------------------
-    // Finalize payment
-    //
-    // Now that AI succeeded:
-    // reservedCoins decreases
-    // actual coins decrease
-    // ----------------------------------------------------------
-
-    const finalResult =
-      await db.runTransaction(
-        async (tx) => {
-          const profileSnapshot =
-            await tx.get(profile);
-
-          const reservationSnapshot =
-            await tx.get(
-              reservationRef,
-            );
-
-          if (
-            !reservationSnapshot.exists
-          ) {
-            throw new HttpsError(
-              "failed-precondition",
-              "AI reply reservation was not found.",
-            );
-          }
-
-          const reservationData =
-            reservationSnapshot.data() ??
-            {};
-
-          if (
-            reservationData.status !==
-            "reserved"
-          ) {
-            throw new HttpsError(
-              "failed-precondition",
-              "AI reply reservation is no longer active.",
-            );
-          }
-
-          const data =
-            profileSnapshot.data() ??
-            {};
-
-          const currentCoins =
-            Number(
-              data.coins ?? 0,
-            );
-
-          const reservedCoins =
-            Number(
-              data.reservedCoins ??
-                0,
-            );
-
-          if (
-            currentCoins <
-            coinCost
-          ) {
-            throw new HttpsError(
-              "resource-exhausted",
-              "Coin balance is insufficient.",
-            );
-          }
-
-          if (
-            reservedCoins <
-            coinCost
-          ) {
-            throw new HttpsError(
-              "failed-precondition",
-              "Coin reservation is invalid.",
-            );
-          }
-
-          const newCoins =
-            currentCoins -
-            coinCost;
-
-          const newReservedCoins =
-            reservedCoins -
-            coinCost;
-
-          tx.update(
-            profile,
-            {
-              coins: newCoins,
-              reservedCoins:
-                Math.max(
-                  0,
-                  newReservedCoins,
-                ),
-              updatedAt:
-                FieldValue.serverTimestamp(),
-            },
-          );
-
-          tx.update(
-            reservationRef,
-            {
-              status: "completed",
-              completedAt:
-                FieldValue.serverTimestamp(),
-            },
-          );
-
-          return {
-            reply: cleanedReply,
-            remainingCoins:
-              newCoins,
-            tier,
-            costDeducted:
-              coinCost,
-          };
-        },
-      );
-
-    return finalResult;
   },
 );
