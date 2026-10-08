@@ -1,4 +1,5 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onMessagePublished } = require("firebase-functions/v2/pubsub");
 const { initializeApp } = require("firebase-admin/app");
 const {
   getFirestore,
@@ -33,9 +34,12 @@ const db = getFirestore("databaseforrizzaj");
 
 const PACKAGE_NAME = "com.prothon.rizzguru";
 
-// --------------------------------------------------------------------------
+// Pub/Sub topic used by Google Play Real-time Developer Notifications.
+const GOOGLE_PLAY_RTDN_TOPIC = "rizz-guru-play-rtdn";
+
+// ============================================================================
 // GOOGLE PLAY PRODUCTS
-// --------------------------------------------------------------------------
+// ============================================================================
 
 // Legacy product.
 // Keep this temporarily so old/testing purchases do not break.
@@ -88,6 +92,14 @@ function aiReservationRef(uid, reservationId) {
   return userRef(uid)
     .collection("aiReservations")
     .doc(reservationId);
+}
+
+// Stores the relationship between a Google Play subscription purchase token
+// and the Firebase user who completed the verified purchase.
+function subscriptionMappingRef(purchaseToken) {
+  return db
+    .collection("googlePlaySubscriptions")
+    .doc(hashValue(purchaseToken));
 }
 
 // ============================================================================
@@ -178,6 +190,61 @@ function getPublisher() {
     version: "v3",
     auth,
   });
+}
+
+// ============================================================================
+// GOOGLE PLAY SUBSCRIPTION MAPPING
+// ============================================================================
+
+async function linkSubscriptionToUser({
+  uid,
+  purchaseToken,
+  productId,
+}) {
+  const ref =
+    subscriptionMappingRef(
+      purchaseToken,
+    );
+
+  await db.runTransaction(
+    async (tx) => {
+      const snapshot =
+        await tx.get(ref);
+
+      if (snapshot.exists) {
+        const data =
+          snapshot.data() ?? {};
+
+        const existingUid =
+          String(data.uid ?? "");
+
+        if (
+          existingUid &&
+          existingUid !== uid
+        ) {
+          throw new HttpsError(
+            "permission-denied",
+            "This Google Play subscription belongs to another account.",
+          );
+        }
+      }
+
+      tx.set(
+        ref,
+        {
+          uid,
+          productId,
+          purchaseTokenHash:
+            hashValue(
+              purchaseToken,
+            ),
+          updatedAt:
+            FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    },
+  );
 }
 
 // ============================================================================
@@ -667,6 +734,15 @@ exports.verifyGooglePlayPurchase = onCall(
         );
       }
 
+      // Link the verified Play token to this Firebase account
+      // before processing it for renewal notifications.
+      await linkSubscriptionToUser({
+        uid,
+        purchaseToken,
+        productId:
+          WEEKLY_PRODUCT_ID,
+      });
+
       const result =
         await applyPurchase({
           uid,
@@ -732,6 +808,381 @@ exports.verifyGooglePlayPurchase = onCall(
     }
   },
 );
+
+// ============================================================================
+// GOOGLE PLAY REAL-TIME DEVELOPER NOTIFICATIONS
+// ============================================================================
+
+exports.googlePlaySubscriptionNotifications =
+  onMessagePublished(
+    {
+      topic:
+        GOOGLE_PLAY_RTDN_TOPIC,
+      region:
+        FUNCTIONS_REGION,
+    },
+    async (event) => {
+      const message =
+        event.data.message;
+
+      let notification = null;
+
+      // Firebase's Pub/Sub wrapper exposes JSON messages through
+      // event.data.message.json. Google Play RTDN publishes the
+      // notification as a base64-encoded data field.
+      try {
+        if (
+          message.json &&
+          typeof message.json ===
+            "object"
+        ) {
+          notification =
+            message.json;
+        } else if (
+          message.data
+        ) {
+          const raw =
+            Buffer.from(
+              message.data,
+              "base64",
+            ).toString("utf8");
+
+          notification =
+            JSON.parse(raw);
+        }
+      } catch (error) {
+        console.error(
+          "Could not decode Google Play RTDN:",
+          error,
+        );
+
+        // Do not retry malformed notifications forever.
+        return;
+      }
+
+      if (!notification) {
+        console.warn(
+          "Google Play RTDN contained no data.",
+        );
+        return;
+      }
+
+      // ----------------------------------------------------------------------
+      // PACKAGE CHECK
+      // ----------------------------------------------------------------------
+
+      if (
+        notification.packageName !==
+        PACKAGE_NAME
+      ) {
+        console.warn(
+          "Ignoring RTDN for another package:",
+          notification.packageName,
+        );
+        return;
+      }
+
+      // ----------------------------------------------------------------------
+      // SUBSCRIPTION NOTIFICATION CHECK
+      // ----------------------------------------------------------------------
+
+      const subscriptionNotification =
+        notification.subscriptionNotification;
+
+      if (!subscriptionNotification) {
+        // We only handle subscription notifications in this function.
+        return;
+      }
+
+      const notificationType =
+        Number(
+          subscriptionNotification.notificationType,
+        );
+
+      const purchaseToken =
+        String(
+          subscriptionNotification.purchaseToken ??
+            "",
+        ).trim();
+
+      if (!purchaseToken) {
+        console.warn(
+          "Google Play RTDN has no purchase token.",
+        );
+        return;
+      }
+
+      // ----------------------------------------------------------------------
+      // FIND FIREBASE USER
+      // ----------------------------------------------------------------------
+
+      const mappingSnapshot =
+        await subscriptionMappingRef(
+          purchaseToken,
+        ).get();
+
+      if (!mappingSnapshot.exists) {
+        console.warn(
+          "No Firebase user mapping found for Google Play subscription token.",
+        );
+
+        // This can happen if Google sends the initial PURCHASED
+        // notification before the client finishes verification.
+        // The client verification path will create the mapping.
+        return;
+      }
+
+      const mapping =
+        mappingSnapshot.data() ?? {};
+
+      const uid =
+        String(
+          mapping.uid ?? "",
+        ).trim();
+
+      if (!uid) {
+        console.warn(
+          "Google Play subscription mapping has no UID.",
+        );
+        return;
+      }
+
+      // ----------------------------------------------------------------------
+      // GET AUTHORITATIVE GOOGLE PLAY STATE
+      // ----------------------------------------------------------------------
+
+      const publisher =
+        getPublisher();
+
+      let response;
+
+      try {
+        response =
+          await publisher.purchases.subscriptionsv2.get(
+            {
+              packageName:
+                PACKAGE_NAME,
+              token:
+                purchaseToken,
+            },
+          );
+      } catch (error) {
+        console.error(
+          "Could not fetch Google Play subscription:",
+          error,
+        );
+
+        // Throw so Pub/Sub can retry a transient Google API failure.
+        throw error;
+      }
+
+      const subscription =
+        response.data;
+
+      const state =
+        subscription.subscriptionState;
+
+      // ----------------------------------------------------------------------
+      // MAKE SURE THIS IS OUR WEEKLY PRODUCT
+      // ----------------------------------------------------------------------
+
+      const lineItem =
+        (
+          subscription.lineItems ??
+          []
+        ).find(
+          (item) =>
+            item.productId ===
+            WEEKLY_PRODUCT_ID,
+        );
+
+      if (!lineItem) {
+        console.warn(
+          "RTDN subscription does not contain rizz_weekly.",
+        );
+        return;
+      }
+
+      const expiryTime =
+        lineItem.expiryTime
+          ? new Date(
+              lineItem.expiryTime,
+            )
+          : null;
+
+      const validExpiry =
+        expiryTime &&
+        !Number.isNaN(
+          expiryTime.getTime(),
+        )
+          ? expiryTime
+          : null;
+
+      // ----------------------------------------------------------------------
+      // PURCHASE / RENEWAL
+      // ----------------------------------------------------------------------
+      //
+      // Google Play notification types:
+      //
+      // 2 = SUBSCRIPTION_RENEWED
+      // 4 = SUBSCRIPTION_PURCHASED
+      //
+      // We only credit coins for these events.
+      //
+      // applyPurchase() makes this idempotent, so if the client already
+      // credited the purchase and RTDN arrives afterwards, the same order
+      // cannot credit the user twice.
+      // ----------------------------------------------------------------------
+
+      if (
+        (
+          notificationType === 2 ||
+          notificationType === 4
+        ) &&
+        state ===
+          "SUBSCRIPTION_STATE_ACTIVE"
+      ) {
+        const orderId =
+          lineItem.latestSuccessfulOrderId ||
+          subscription.latestOrderId;
+
+        if (!orderId) {
+          console.warn(
+            "No successful order ID found for Google Play RTDN.",
+          );
+          return;
+        }
+
+        const result =
+          await applyPurchase({
+            uid,
+            productId:
+              WEEKLY_PRODUCT_ID,
+            purchaseToken,
+            idempotencyKey:
+              "subscription:" +
+              purchaseToken +
+              ":" +
+              orderId,
+            coins:
+              COINS_PER_WEEK,
+            subscriptionExpiresAt:
+              validExpiry,
+          });
+
+        // Refresh the mapping timestamp.
+        await subscriptionMappingRef(
+          purchaseToken,
+        ).set(
+          {
+            uid,
+            productId:
+              WEEKLY_PRODUCT_ID,
+            purchaseTokenHash:
+              hashValue(
+                purchaseToken,
+              ),
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+
+        console.log(
+          "Google Play subscription processed.",
+          {
+            uid,
+            notificationType,
+            orderId,
+            credited:
+              result.credited,
+            coinsAdded:
+              result.credited
+                ? COINS_PER_WEEK
+                : 0,
+          },
+        );
+
+        return;
+      }
+
+      // ----------------------------------------------------------------------
+      // ACTIVE / GRACE PERIOD
+      // ----------------------------------------------------------------------
+      //
+      // Cancellation does NOT necessarily mean immediate loss of access.
+      // If Google still reports ACTIVE, the user keeps the subscription
+      // until the expiry time.
+      // ----------------------------------------------------------------------
+
+      if (
+        state ===
+          "SUBSCRIPTION_STATE_ACTIVE" ||
+        state ===
+          "SUBSCRIPTION_STATE_IN_GRACE_PERIOD"
+      ) {
+        await userRef(uid).set(
+          {
+            subscriptionActive:
+              true,
+            subscriptionExpiresAt:
+              validExpiry
+                ? Timestamp.fromDate(
+                    validExpiry,
+                  )
+                : null,
+            subscriptionProductId:
+              WEEKLY_PRODUCT_ID,
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+
+        console.log(
+          "Google Play subscription remains active.",
+          {
+            uid,
+            notificationType,
+            state,
+          },
+        );
+
+        return;
+      }
+
+      // ----------------------------------------------------------------------
+      // EXPIRED / ON HOLD / PAUSED / REVOKED / OTHER INACTIVE STATES
+      // ----------------------------------------------------------------------
+
+      await userRef(uid).set(
+        {
+          subscriptionActive:
+            false,
+          subscriptionExpiresAt:
+            validExpiry
+              ? Timestamp.fromDate(
+                  validExpiry,
+                )
+              : null,
+          subscriptionProductId:
+            WEEKLY_PRODUCT_ID,
+          updatedAt:
+            FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      console.log(
+        "Google Play subscription state updated.",
+        {
+          uid,
+          notificationType,
+          state,
+        },
+      );
+    },
+  );
 
 // ============================================================================
 // AI RESERVATION HELPERS
