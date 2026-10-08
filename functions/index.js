@@ -922,15 +922,17 @@ exports.googlePlaySubscriptionNotifications =
         ).get();
 
       if (!mappingSnapshot.exists) {
-        console.warn(
-          "No Firebase user mapping found for Google Play subscription token.",
-        );
+  console.warn(
+    "No Firebase user mapping found for Google Play subscription token. Retrying RTDN.",
+  );
 
-        // This can happen if Google sends the initial PURCHASED
-        // notification before the client finishes verification.
-        // The client verification path will create the mapping.
-        return;
-      }
+  // The initial PURCHASED RTDN can arrive before the app finishes
+  // backend verification. Throw so Pub/Sub retries the notification
+  // instead of acknowledging and permanently losing the event.
+  throw new Error(
+    "Subscription mapping is not available yet.",
+  );
+}
 
       const mapping =
         mappingSnapshot.data() ?? {};
@@ -1069,6 +1071,24 @@ exports.googlePlaySubscriptionNotifications =
             subscriptionExpiresAt:
               validExpiry,
           });
+
+        // A new subscription purchase must be acknowledged. Renewals
+// do not need acknowledgement.
+if (
+  notificationType === 4 &&
+  subscription.acknowledgementState ===
+    "ACKNOWLEDGEMENT_STATE_PENDING"
+) {
+  await publisher.purchases.subscriptions.acknowledge({
+    packageName:
+      PACKAGE_NAME,
+    subscriptionId:
+      WEEKLY_PRODUCT_ID,
+    token:
+      purchaseToken,
+    requestBody: {},
+  });
+}
 
         // Refresh the mapping timestamp.
         await subscriptionMappingRef(
