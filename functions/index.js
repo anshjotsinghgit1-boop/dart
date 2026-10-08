@@ -33,12 +33,43 @@ const db = getFirestore("databaseforrizzaj");
 
 const PACKAGE_NAME = "com.prothon.rizzguru";
 
-const TOP_UP_PRODUCT_ID = "coins_150_100";
+// --------------------------------------------------------------------------
+// GOOGLE PLAY PRODUCTS
+// --------------------------------------------------------------------------
+
+// Legacy product.
+// Keep this temporarily so old/testing purchases do not break.
+const LEGACY_TOP_UP_PRODUCT_ID = "coins_150_100";
+
+// Current one-time coin products.
+const COIN_PRODUCT_CONFIG = Object.freeze({
+  coins_200_49: 200,
+  coins_450_100: 450,
+  coins_2400_500: 2400,
+  coins_5000_1000: 5000,
+
+  // Legacy product.
+  [LEGACY_TOP_UP_PRODUCT_ID]: 150,
+});
+
+const COIN_PRODUCT_IDS = new Set(
+  Object.keys(COIN_PRODUCT_CONFIG),
+);
+
+// Weekly auto-renewing subscription.
 const WEEKLY_PRODUCT_ID = "rizz_weekly";
 
+// Coins granted for each successful weekly subscription
+// purchase/renewal.
+const COINS_PER_WEEK = 750;
+
+// All products accepted by the backend.
+const GOOGLE_PLAY_PRODUCT_IDS = new Set([
+  ...COIN_PRODUCT_IDS,
+  WEEKLY_PRODUCT_ID,
+]);
+
 const STARTING_COINS = 20;
-const COINS_PER_TOPUP = 150;
-const COINS_PER_WEEK = 150;
 
 const FUNCTIONS_REGION = "asia-south1";
 
@@ -174,6 +205,10 @@ async function applyPurchase({
     const currentCoins =
       Number(profileData.coins ?? 0);
 
+    // ------------------------------------------------------------------------
+    // IDEMPOTENCY
+    // ------------------------------------------------------------------------
+
     if (usedSnapshot.exists) {
       const usedData =
         usedSnapshot.data() ?? {};
@@ -188,6 +223,8 @@ async function applyPurchase({
         );
       }
 
+      // For subscription renewals, still update a newer expiry date
+      // if Google Play gives us one.
       if (subscriptionExpiresAt) {
         const currentExpiry =
           timestampMillis(
@@ -222,6 +259,10 @@ async function applyPurchase({
       };
     }
 
+    // ------------------------------------------------------------------------
+    // CREDIT COINS
+    // ------------------------------------------------------------------------
+
     if (profileSnapshot.exists) {
       tx.update(profile, {
         coins: FieldValue.increment(coins),
@@ -238,6 +279,10 @@ async function applyPurchase({
           FieldValue.serverTimestamp(),
       });
     }
+
+    // ------------------------------------------------------------------------
+    // RECORD PURCHASE
+    // ------------------------------------------------------------------------
 
     const orderRecord = {
       uid,
@@ -258,6 +303,10 @@ async function applyPurchase({
     }
 
     tx.create(used, orderRecord);
+
+    // ------------------------------------------------------------------------
+    // SUBSCRIPTION STATUS
+    // ------------------------------------------------------------------------
 
     if (subscriptionExpiresAt) {
       tx.set(
@@ -455,12 +504,7 @@ exports.verifyGooglePlayPurchase = onCall(
       );
     }
 
-    if (
-      ![
-        TOP_UP_PRODUCT_ID,
-        WEEKLY_PRODUCT_ID,
-      ].includes(productId)
-    ) {
+    if (!GOOGLE_PLAY_PRODUCT_IDS.has(productId)) {
       throw new HttpsError(
         "invalid-argument",
         "Unknown Google Play product.",
@@ -471,20 +515,16 @@ exports.verifyGooglePlayPurchase = onCall(
       const publisher =
         getPublisher();
 
-      // ----------------------------------------------------------
-      // TOP-UP
-      // ----------------------------------------------------------
+      // ----------------------------------------------------------------------
+      // COIN PRODUCTS
+      // ----------------------------------------------------------------------
 
-      if (
-        productId ===
-        TOP_UP_PRODUCT_ID
-      ) {
+      if (COIN_PRODUCT_IDS.has(productId)) {
         const response =
           await publisher.purchases.products.get({
             packageName:
               PACKAGE_NAME,
-            productId:
-              TOP_UP_PRODUCT_ID,
+            productId,
             token:
               purchaseToken,
           });
@@ -518,6 +558,9 @@ exports.verifyGooglePlayPurchase = onCall(
           purchase.orderId ||
           purchaseToken;
 
+        const coins =
+          COIN_PRODUCT_CONFIG[productId];
+
         const result =
           await applyPurchase({
             uid,
@@ -526,24 +569,18 @@ exports.verifyGooglePlayPurchase = onCall(
             idempotencyKey:
               "topup:" +
               purchaseToken,
-            coins:
-              COINS_PER_TOPUP,
+            coins,
           });
 
-        if (
-          Number(
-            purchase.consumptionState,
-          ) !== 1
-        ) {
-          await publisher.purchases.products.consume({
-            packageName:
-              PACKAGE_NAME,
-            productId:
-              TOP_UP_PRODUCT_ID,
-            token:
-              purchaseToken,
-          });
-        }
+        // Consume only after the purchase has been
+        // successfully credited/idempotently processed.
+        await publisher.purchases.products.consume({
+          packageName:
+            PACKAGE_NAME,
+          productId,
+          token:
+            purchaseToken,
+        });
 
         return {
           coins:
@@ -551,13 +588,15 @@ exports.verifyGooglePlayPurchase = onCall(
           credited:
             result.credited,
           productId,
+          coinsAdded:
+            coins,
           orderId,
         };
       }
 
-      // ----------------------------------------------------------
+      // ----------------------------------------------------------------------
       // WEEKLY SUBSCRIPTION
-      // ----------------------------------------------------------
+      // ----------------------------------------------------------------------
 
       const response =
         await publisher.purchases.subscriptionsv2.get({
@@ -643,6 +682,10 @@ exports.verifyGooglePlayPurchase = onCall(
           subscriptionExpiresAt,
         });
 
+      // ----------------------------------------------------------------------
+      // ACKNOWLEDGE SUBSCRIPTION
+      // ----------------------------------------------------------------------
+
       if (
         subscription.acknowledgementState ===
         "ACKNOWLEDGEMENT_STATE_PENDING"
@@ -668,6 +711,8 @@ exports.verifyGooglePlayPurchase = onCall(
         expiresAt:
           subscriptionExpiresAt.toISOString(),
         productId,
+        coinsAdded:
+          COINS_PER_WEEK,
         orderId,
       };
     } catch (error) {
