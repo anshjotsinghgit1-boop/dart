@@ -8,6 +8,7 @@ on:
       - main
     paths:
       - "functions/**"
+      - ".github/workflows/deploy-functions.yml"
 
 jobs:
   deploy:
@@ -29,10 +30,10 @@ jobs:
         working-directory: functions
         run: npm install
 
-      - name: Deploy generateReply to Firebase
+      - name: Deploy Firebase Functions
         uses: w9jds/firebase-action@v15.28.1
         with:
-          args: deploy --only functions:generateReply
+          args: deploy --only functions:generateReply,functions:googlePlaySubscriptionNotifications
         env:
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           PROJECT_ID: replyai-749f7
