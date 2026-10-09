@@ -222,11 +222,16 @@ class GooglePlayBillingService {
           continue;
 
         case PurchaseStatus.error:
-          onError?.call(
-            purchase.error?.message ??
-                'Google Play purchase failed.',
-          );
-          continue;
+  final error = purchase.error;
+
+  onError?.call(
+    'GOOGLE PLAY BILLING ERROR\n'
+    'Product: ${purchase.productID}\n'
+    'Code: ${error?.code ?? 'unknown'}\n'
+    'Message: ${error?.message ?? 'unknown'}\n'
+    'Details: ${error?.details ?? 'none'}',
+  );
+  continue;
 
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
