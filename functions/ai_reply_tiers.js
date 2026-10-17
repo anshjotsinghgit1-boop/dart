@@ -27,7 +27,7 @@ const TIER_MODELS = {
   premium: {
     name: 'premium',
     cost: 6,
-    model: 'gpt-5-mini',
+    model: 'x-ai/grok-4.7',
   },
 };
 
