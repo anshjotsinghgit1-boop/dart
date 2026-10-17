@@ -27,7 +27,7 @@ const TIER_MODELS = {
   premium: {
     name: 'premium',
     cost: 6,
-    model: 'x-ai/grok-3-mini',
+    model: 'gryphe/mythomax-l2-13b',
   },
 };
 
