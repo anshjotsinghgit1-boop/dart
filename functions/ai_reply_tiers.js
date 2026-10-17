@@ -21,13 +21,13 @@ const TIER_MODELS = {
   smart: {
     name: 'smart',
     cost: 3,
-    model: 'deepseek/deepseek-v3.2',
+    model: 'deepseek/deepseek-chat',
   },
 
   premium: {
     name: 'premium',
     cost: 6,
-    model: 'x-ai/grok-4.7',
+    model: 'x-ai/grok-3-mini',
   },
 };
 
