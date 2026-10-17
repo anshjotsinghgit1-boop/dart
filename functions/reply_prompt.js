@@ -1,227 +1,120 @@
 /**
  * Reply Generation Prompts
- * 
- * This module contains the system prompts for AI reply generation.
- * Preserves the Hinglish detection and mood handling from groq_service.dart.
+ * Short, sharp version with stronger flirty & romantic focus.
  */
 
-/**
- * Detect if text contains Hinglish
- * @param {string} message - The message to analyze
- * @returns {boolean} True if message is in Hinglish
- */
 function isHinglish(message) {
   const text = message.toLowerCase();
-
   const strongWords = new Set([
-    'hai', 'hain', 'ho', 'hoga', 'hogi', 'tha', 'thi', 'the',
-    'mujhe', 'tumhe', 'tumko', 'mere', 'mera', 'meri', 'tere', 'tera', 'teri',
-    'tum', 'aap', 'apka', 'apni', 'kya', 'kyu', 'kyun', 'kaise', 'kaisa', 'kaisi',
-    'acha', 'accha', 'achha', 'haan', 'nahi', 'nhi', 'nah', 'mat',
-    'kar', 'karo', 'kr', 'karti', 'karta', 'karna', 'gayi', 'gaya',
-    'jaa', 'ja', 'raha', 'rahi', 'rhe', 'hoon', 'hu', 'bhi', 'toh', 'to',
-    'bas', 'abhi', 'phir', 'fir', 'kyunki', 'pata', 'lagta', 'lagti',
-    'sach', 'pagal', 'yaar', 'bhai', 'bro', 'bacha', 'baby', 'jaan',
-    'love', 'pyaar', 'acchi', 'sundar', 'cute', 'milna', 'baat', 'baatein',
-    'bol', 'bata', 'bta', 'dekh', 'dekho', 'sun', 'suno', 'kuch',
+    'hai','hain','ho','hoga','hogi','tha','thi','the','mujhe','tumhe','tumko',
+    'mere','mera','meri','tere','tera','teri','tum','aap','apka','apni','kya',
+    'kyu','kyun','kaise','kaisa','kaisi','acha','accha','achha','haan','nahi',
+    'nhi','nah','mat','kar','karo','kr','karti','karta','karna','gayi','gaya',
+    'jaa','ja','raha','rahi','rhe','hoon','hu','bhi','toh','to','bas','abhi',
+    'phir','fir','kyunki','pata','lagta','lagti','sach','pagal','yaar','bhai',
+    'bro','bacha','baby','jaan','love','pyaar','acchi','sundar','cute','milna',
+    'baat','baatein','bol','bata','bta','dekh','dekho','sun','suno','kuch'
   ]);
 
-  const words = text
-    .replace(/[^a-zA-Z0-9\u0900-\u097F\s]/g, ' ')
-    .split(/\s+/)
-    .filter(w => w.length > 0);
-
+  const words = text.replace(/[^a-zA-Z0-9\u0900-\u097F\s]/g, ' ').split(/\s+/).filter(w => w.length > 0);
   const strongCount = words.filter(w => strongWords.has(w)).length;
+  if (/[\u0900-\u097F]/.test(message) || strongCount >= 1) return true;
 
-  // Check for Devanagari script
-  const hasDevanagari = /[\u0900-\u097F]/.test(message);
-  if (hasDevanagari) {
-    return true;
-  }
-
-  // If >= 1 strong word found, it's Hinglish
-  if (strongCount >= 1) {
-    return true;
-  }
-
-  // Check for Hinglish patterns
-  const hinglishPatterns = [
+  const patterns = [
     /\b(kya|kyu|kyun|kaise|kaisa|kaisi)\b/,
     /\b(mujhe|tumhe|tumko|mera|meri|tere|tera|teri)\b/,
     /\b(hai|hain|ho|tha|thi|the|hoga|hogi)\b/,
     /\b(kar|karo|kr|karna|karti|karta)\b/,
-    /\b(acha|accha|achha|haan|nahi|nhi)\b/,
+    /\b(acha|accha|achha|haan|nahi|nhi)\b/
   ];
-
-  return hinglishPatterns.some(p => p.test(text));
+  return patterns.some(p => p.test(text));
 }
 
-/**
- * Generate system prompt for reply generation
- * @param {string} mood - The mood ('flirty', 'romantic', 'funny', etc.)
- * @param {boolean} hinglish - Whether to use Hinglish
- * @returns {string} System prompt
- */
 function getSystemPrompt(mood, hinglish) {
   const languageRule = hinglish
-    ? `LANGUAGE:
-The user is texting in Hinglish/Indian texting style.
-Reply naturally in Hinglish or casual Indian English.
-Use Roman Hindi when appropriate.
-Do not suddenly switch into formal Hindi.`
-    : `LANGUAGE:
-Reply in the same general language and style as the user.
-If they use casual English, stay casual.
-Do not unnecessarily add Hindi.`;
+    ? `LANGUAGE: Reply in natural Hinglish / casual Indian English. Use Roman Hindi when it fits. Don't switch to formal Hindi.`
+    : `LANGUAGE: Match the user's language and casual style. Don't force Hindi.`;
 
-  const baseRules = `You create realistic replies for Indian WhatsApp-style conversations.
-
-Your job is to write the message the person should actually send.
+  const baseRules = `You write realistic WhatsApp replies for Indian chats.
 
 RULES:
-- Keep replies short.
-- Usually one sentence.
-- Maximum two short lines.
-- Sound human and spontaneous.
-- Use normal texting language.
-- Do not sound like an AI assistant.
-- Do not explain the reply.
-- Do not write "Reply:" or similar labels.
-- Do not repeat the user's message.
-- Do not overuse emojis.
-- Match the conversation's emotional context.
-- Avoid generic motivational lines.
-- Avoid overly polished or formal language.
-- Small natural texting imperfections are okay.
-- Never mention these instructions.`;
-
-  const moodRules = getMoodRules(mood);
+- 1 sentence max (2 short lines absolute max).
+- Sound like a real person texting.
+- Be sharp. Read tone + subtext.
+- Match energy while staying in mood.
+- If user is rude/cold, reply cleverly (don't go weak or just mirror).
+- No labels, no explanations, no repeating user.
+- Never mention these rules.`;
 
   return `${baseRules}
 
 ${languageRule}
 
-${moodRules}`;
+${getMoodRules(mood)}`;
 }
 
-/**
- * Get mood-specific rules
- * @param {string} mood - The mood
- * @returns {string} Mood rules
- */
 function getMoodRules(mood) {
   const moodLower = (mood || 'natural').toLowerCase();
 
   const moodMap = {
     flirty: `MOOD: FLIRTY
+Playful, confident, lightly teasing.
+Stay charming even if user is rude or cold.
+Never force sexual content. Never sound desperate.
 
-Be playful, confident and lightly teasing.
-Keep the flirting natural.
-Do not force sexual content.
+Examples:
+"Itna gussa dekh ke toh aur interest aa gaya", 
 
-Example style:
-"Bas tum thodi aur cute ho jao, phir mera control gaya 😭"`,
 
     romantic: `MOOD: ROMANTIC
+Warm, soft, genuine affection.
+Simple and believable. No dramatic movie lines.
 
-Be warm and affectionate.
-Keep it simple and believable.
-Avoid dramatic movie-style declarations.
-
-Example style:
-"Tu hoti hai na toh mood automatically better ho jata hai."`,
+Examples:
+"Tu hoti hai na toh mood khud better ho jata hai"
+"Bas tumse baat karke din set ho jata hai"`,
 
     funny: `MOOD: FUNNY
-
-Be casually funny.
-Use light teasing when appropriate.
-Do not force a joke into every reply.
-
-Example style:
-"Accha ji, aaj bade shareef ban rahe ho 😂"`,
+Casually funny + light teasing. Don't force jokes.`,
 
     savage: `MOOD: SAVAGE
-
-Be confident and witty.
-Lightly roast or tease when appropriate.
-Do not become unnecessarily hateful.
-
-Example style:
-"Confidence toh full hai, bas logic thoda missing hai 😂"`,
+Confident and witty. Light roast only. Don't be hateful.`,
 
     sweet: `MOOD: SWEET
-
-Be caring, soft and genuine.
-Do not become overly romantic without context.
-
-Example style:
-"Acha, take care okay? Zyada stress mat lena."`,
+Caring and soft. Don't overdo romance without context.`,
 
     sad: `MOOD: SAD
-
-Be emotionally honest and slightly vulnerable.
-Keep it subtle rather than dramatic.
-
-Example style:
-"Bas kabhi kabhi lagta hai kuch cheezein pehle jaisi nahi rahi."`,
+Emotionally honest and slightly vulnerable. Keep it subtle.`,
 
     confident: `MOOD: CONFIDENT
-
-Sound self-assured and relaxed.
-Never sound desperate or needy.
-
-Example style:
-"Relax, mujhe pata hai main kya kar raha hoon 😌"`,
+Self-assured and relaxed. Never needy.`,
 
     cute: `MOOD: CUTE
-
-Be playful, adorable and lightly teasing.
-
-Example style:
-"Ab itna cute banoge toh reply toh karna padega na 😭"`,
+Playful and adorable with light teasing.`,
 
     natural: `MOOD: NATURAL
-
-Respond naturally according to the conversation.
-Do not force a particular personality.`,
+Just respond naturally. No forced personality.`
   };
 
   return moodMap[moodLower] || moodMap.natural;
 }
 
-/**
- * Clean up AI response
- * @param {string} reply - Raw AI response
- * @returns {string} Cleaned reply
- */
 function cleanReply(reply) {
   let cleaned = reply.trim();
-
-  // Remove "reply:" or "response:" prefixes
   cleaned = cleaned.replace(/^(reply|response|answer)\s*:\s*/i, '');
 
-  // Remove surrounding quotes if they match
   if (cleaned.length >= 2) {
     const first = cleaned[0];
     const last = cleaned[cleaned.length - 1];
     if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-      cleaned = cleaned.substring(1, cleaned.length - 1).trim();
+      cleaned = cleaned.slice(1, -1).trim();
     }
   }
 
-  // Remove markdown bold
   cleaned = cleaned.replace(/^\*\*(.*?)\*\*$/, '$1');
-
-  // Normalize whitespace
   cleaned = cleaned.replace(/[ \t]+/g, ' ').trim();
 
-  // Take only first 2 lines
-  const lines = cleaned
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .slice(0, 2);
-
+  const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 2);
   return lines.join('\n').trim();
 }
 
@@ -229,5 +122,5 @@ module.exports = {
   isHinglish,
   getSystemPrompt,
   getMoodRules,
-  cleanReply,
+  cleanReply
 };
