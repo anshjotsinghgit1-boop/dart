@@ -1981,6 +1981,7 @@ exports.generateReply = onCall(
         getSystemPrompt(
           mood,
           hinglish,
+          tier, 
         );
 
       const messages = [
