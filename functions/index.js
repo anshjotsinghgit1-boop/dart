@@ -73,7 +73,7 @@ const GOOGLE_PLAY_PRODUCT_IDS = new Set([
   WEEKLY_PRODUCT_ID,
 ]);
 
-const STARTING_COINS = 20;
+const STARTING_COINS = 2;
 
 const FUNCTIONS_REGION = "asia-south1";
 
