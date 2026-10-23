@@ -4,9 +4,9 @@
  * Handles API calls to AICredits for all AI reply tiers.
  *
  * Models are selected by ai_reply_tiers.js:
- * - Basic   → GPT-4o-mini
- * - Smart   → DeepSeek V3.2
- * - Premium → GPT-5-mini
+ * - Basic   → openai/gpt-4o-mini
+ * - Smart   → deepseek/deepseek-chat
+ * - Premium → gryphe/mythomax-l2-13b
  */
 
 const { HttpsError } = require('firebase-functions/v2/https');
@@ -21,7 +21,13 @@ const MAX_RETRIES = 2;
  * @param {Array<object>} messages - Chat messages.
  * @returns {Promise<string>} Generated AI reply.
  */
-async function callAI(tier, messages) {
+async function callAI(tier, messages, options = {}) {
+  const temperature = Number.isFinite(options.temperature)
+    ? options.temperature
+    : 0.7;
+  const maxTokens = Number.isInteger(options.maxTokens)
+    ? Math.max(1, Math.min(options.maxTokens, 4096))
+    : 512;
   if (!tier || typeof tier !== 'object') {
     throw new HttpsError(
       'internal',
@@ -71,8 +77,8 @@ async function callAI(tier, messages) {
           body: JSON.stringify({
             model: tier.model,
             messages,
-            temperature: 0.7,
-            max_tokens: 512,
+            temperature,
+            max_tokens: maxTokens,
             frequency_penalty: 0.2,
             presence_penalty: 0.0,
           }),
