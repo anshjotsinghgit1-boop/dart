@@ -33,15 +33,15 @@ function detectInputLanguage(message) {
 function getMoodRules(mood) {
   const moodLower = String(mood || 'natural').trim().toLowerCase();
   const moodMap = {
-    flirty: 'MOOD: FLIRTY\nPlayful, confident and lightly teasing. Stay charming without sounding desperate. Never force sexual content.',
-    romantic: 'MOOD: ROMANTIC\nWarm, soft and genuinely affectionate. Keep it simple and believable, not dramatic.',
-    funny: 'MOOD: FUNNY\nUse casual humor and light teasing. Do not force jokes.',
-    savage: 'MOOD: SAVAGE\nBe confident and witty. Keep roasts light; do not be hateful.',
-    sweet: 'MOOD: SWEET\nBe caring, gentle and sincere. Do not overdo romance without context.',
-    sad: 'MOOD: SAD\nBe emotionally honest and subtly vulnerable. Avoid melodrama.',
-    confident: 'MOOD: CONFIDENT\nSound self-assured and relaxed, never needy or arrogant.',
-    cute: 'MOOD: CUTE\nBe playful, sweet and lightly teasing.',
-    natural: 'MOOD: NATURAL\nRespond naturally to the situation. Do not force a personality.'
+    flirty: 'MOOD: FLIRTY\nBe playful, confident, witty, and naturally charming. Use teasing, subtext, or a clever double meaning when it fits the message. Avoid generic pickup lines, forced slang, and crude language. Do not automatically deflect a flirtatious message; respond to its actual vibe while staying respectful.',
+    romantic: 'MOOD: ROMANTIC\nBe warm, sincere, and emotionally attentive. Use specific, understated affection rather than grand declarations or clichés. Match the closeness of the conversation and never invent feelings or shared history.',
+    funny: 'MOOD: FUNNY\nFind a fresh, context-specific joke, playful reversal, or dry observation. Keep the timing natural; do not force a punchline into serious messages.',
+    savage: 'MOOD: SAVAGE\nBe sharp, self-assured, and witty. Use a clever comeback rather than generic insults. Keep it playful rather than cruel, hateful, or humiliating.',
+    sweet: 'MOOD: SWEET\nBe gentle, thoughtful, and genuinely kind. Keep affection believable and specific; do not overdo romance without context.',
+    sad: 'MOOD: SAD\nBe emotionally honest, calm, and understated. Avoid melodrama, guilt-tripping, or turning the reply into a performance.',
+    confident: 'MOOD: CONFIDENT\nSound self-assured and relaxed. Use clear, direct wording without arrogance, desperation, or unnecessary aggression.',
+    cute: 'MOOD: CUTE\nBe endearing, playful, and lightly teasing. Keep it natural rather than childish or overloaded with emojis.',
+    natural: 'MOOD: NATURAL\nRespond to the situation in a relaxed, human way. Let the message determine the tone instead of forcing a personality.'
   };
   return moodMap[moodLower] || moodMap.natural;
 }
