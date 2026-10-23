@@ -1,9 +1,9 @@
 /**
  * AI Reply Generation System - Tier Configurations
  *
- * Basic   = 1 coin  → GPT-4o-mini
- * Smart   = 3 coins → DeepSeek V3.2
- * Premium = 6 coins → GPT-5-mini
+ * Basic   = 1 coin  → openai/gpt-4o-mini
+ * Smart   = 3 coins → deepseek/deepseek-chat
+ * Premium = 6 coins → gryphe/mythomax-l2-13b
  *
  * All three use the AICredits OpenAI-compatible API.
  */
@@ -78,10 +78,21 @@ function isTierConfigured(tier) {
 }
 
 /**
- * Get the coin cost of a tier.
+ * Get the coin cost for a tier based on 20-word blocks.
+ * The first block uses the base price; each extra block costs:
+ * Basic +1, Smart +2, Premium +4 coins.
  */
-function getTierCost(tierName) {
-  return getTierConfig(tierName).cost;
+function getTierCost(tierName, wordCount = 1) {
+  const tier = getTierConfig(tierName);
+  const count = Math.max(1, Math.floor(Number(wordCount) || 0));
+  const blocks = Math.ceil(count / 20);
+  const extraBlockCost = {
+    basic: 1,
+    smart: 2,
+    premium: 4,
+  }[tier.name];
+
+  return tier.cost + (blocks - 1) * extraBlockCost;
 }
 
 /**

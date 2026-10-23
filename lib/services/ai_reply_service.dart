@@ -14,11 +14,13 @@ class AIReplyService {
 
   /// Generate a reply using the secure server-side AI system.
   ///
-  /// Tier costs:
+  /// Base tier costs for the first 20 words:
   /// - basic: 1 coin
   /// - smart: 3 coins
   /// - premium: 6 coins
   ///
+  /// The backend adds 1, 2, or 4 coins for each additional
+  /// 20-word block for Basic, Smart, or Premium respectively.
   /// Coins are reserved before the AI request and permanently
   /// deducted only when generation succeeds.
   ///

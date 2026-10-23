@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../services/ai_reply_service.dart';
 import '../services/coins_service.dart';
+import '../utils/coin_pricing.dart';
 import 'plans_screen.dart';
 
 class ReplierScreen extends StatefulWidget {
@@ -116,6 +117,15 @@ class _ReplierScreenState extends State<ReplierScreen>
     }
   }
 
+  bool get _premiumAllowed {
+    final mood = widget.mood.toLowerCase();
+    return mood.contains('flirty') || mood.contains('romantic');
+  }
+
+  int _costForTier(String tier, String text) {
+    return CoinPricing.costForTier(tier, text);
+  }
+
   Future<void> _generate() async {
     if (_isLoading) return;
 
@@ -142,7 +152,12 @@ class _ReplierScreenState extends State<ReplierScreen>
       return;
     }
 
-    final tierCost = selectedTier['cost'] as int;
+    if (_selectedTier == 'premium' && !_premiumAllowed) {
+      _showSnack('Premium is available only for Flirty and Romantic moods.');
+      return;
+    }
+
+    final tierCost = _costForTier(_selectedTier, msg);
 
     if (_coins < tierCost) {
       _showNoCoinsDialog();
@@ -253,9 +268,10 @@ class _ReplierScreenState extends State<ReplierScreen>
 
   void _showNoCoinsDialog() {
     if (_coins > 0) {
+      final requiredCoins = _costForTier(_selectedTier, _controller.text);
       _showSnack(
         '${_tierConfig[_selectedTier]?['name'] ?? 'This tier'} '
-        'requires ${_tierConfig[_selectedTier]?['cost'] ?? 1} coins. '
+        'requires $requiredCoins coins for this message. '
         'You have $_coins.',
       );
       return;
@@ -519,14 +535,16 @@ class _ReplierScreenState extends State<ReplierScreen>
         ),
         const SizedBox(height: 12),
         Row(
-          children: _tierConfig.entries.map((entry) {
+          children: _tierConfig.entries
+              .where((entry) => entry.key != 'premium' || _premiumAllowed)
+              .map((entry) {
             final tierName = entry.key;
             final tierData = entry.value;
 
             final isSelected = _selectedTier == tierName;
             final isEnabled = tierData['enabled'] == true;
 
-            final cost = tierData['cost'] as int;
+            final cost = _costForTier(tierName, _controller.text);
             final displayName = tierData['name'] as String;
             final color = tierData['color'] as Color;
 
@@ -611,8 +629,7 @@ class _ReplierScreenState extends State<ReplierScreen>
     final tierName =
         tierData?['name'] as String? ?? 'Basic';
 
-    final tierCost =
-        tierData?['cost'] as int? ?? 1;
+    final tierCost = _costForTier(_selectedTier, _controller.text);
 
     final isTierEnabled =
         tierData?['enabled'] == true;
