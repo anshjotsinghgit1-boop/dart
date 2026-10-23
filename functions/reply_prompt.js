@@ -84,7 +84,7 @@ function getSystemPrompt(mood, hinglish, tier = 'basic') {
 
   const languageRule = hinglish
     ? 'LANGUAGE: Reply in natural Hinglish / casual Indian English. Use Roman Hindi when it fits; do not switch to formal Hindi.'
-    : "LANGUAGE: Match the user's language and casual style. When the message is in English, reply in English. Do not force Hindi.";
+    : "LANGUAGE: Reply in natural conversational English only. The latest user message is in English, translated from the original when needed. Do not switch to Hindi or Hinglish.";
 
   return [getNormalModePrompt(selectedTier), languageRule, getMoodRules(selectedMood)].join('\n\n');
 }
