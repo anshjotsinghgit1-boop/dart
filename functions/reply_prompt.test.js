@@ -16,6 +16,7 @@ test('detects Roman-script Hinglish', () => {
 
 test('does not classify ordinary English affection words as Hinglish', () => {
   assert.equal(detectInputLanguage('I love you baby, bro.'), 'english');
+  assert.equal(detectInputLanguage('The reply is to be sent soon.'), 'english');
 });
 
 test('Premium prompt supports both Flirty and Romantic moods', () => {
