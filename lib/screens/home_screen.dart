@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/coins_service.dart';
 import 'replier_screen.dart';
 import 'plans_screen.dart';
 import 'settings_screen.dart';
-import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userName;
@@ -213,70 +211,37 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildTopBar() {
-    final firstName = widget.userName.split(' ').first;
+    final firstName = widget.userName.trim().split(' ').first;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Row(
         children: [
-          Semantics(
-            button: true,
-            label: 'Open settings',
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: _openSettings,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFFFF5B63),
-                            Color(0xFF9B22F9),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Center(
-                        child: Text(
-                          firstName.isNotEmpty
-                              ? firstName[0].toUpperCase()
-                              : 'R',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      right: -4,
-                      bottom: -4,
-                      child: Container(
-                        width: 18,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A0A35),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF0D071F),
-                            width: 2,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.settings_rounded,
-                          color: Colors.white,
-                          size: 10,
-                        ),
-                      ),
-                    ),
-                  ],
+          Container(
+            width: 46,
+            height: 46,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x33FF5B63),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                firstName.isNotEmpty ? firstName[0].toUpperCase() : 'R',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
                 ),
               ),
             ),
@@ -285,17 +250,23 @@ class _HomeScreenState extends State<HomeScreen>
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Hey, $firstName 👋',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
+                const SizedBox(height: 3),
                 const Text(
-                  'What\'s the vibe today?',
+                  "What's the vibe today?",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Color(0xFF8A8AAA),
                     fontSize: 12,
@@ -304,91 +275,88 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
           ),
-          GestureDetector(
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const PlansScreen(),
-              ),
-            ).then((_) => _loadCoins()),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 8,
-              ),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFFFF5B63),
-                    Color(0xFF9B22F9),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFF5B63).withOpacity(0.35),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+          const SizedBox(width: 8),
+          Semantics(
+            button: true,
+            label: 'View coin balance and plans',
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PlansScreen(),
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  const Text(
-                    '🪙',
-                    style: TextStyle(fontSize: 15),
+                ).then((_) => _loadCoins()),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
                   ),
-                  const SizedBox(width: 5),
-                  if (_coinsLoading)
-                    const SizedBox(
-                      width: 20,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.5,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  else
-                    Text(
-                      '$_coins',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF5B63), Color(0xFF9B22F9)],
                     ),
-                ],
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF5B63).withOpacity(0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('🪙', style: TextStyle(fontSize: 15)),
+                      const SizedBox(width: 5),
+                      if (_coinsLoading)
+                        const SizedBox(
+                          width: 18,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      else
+                        Text(
+                          '$_coins',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () async {
-              await FirebaseAuth.instance.signOut();
-
-              if (mounted) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const LoginScreen(),
+          Semantics(
+            button: true,
+            label: 'Open settings',
+            child: Material(
+              color: Colors.white.withOpacity(0.07),
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _openSettings,
+                child: SizedBox(
+                  width: 42,
+                  height: 42,
+                  child: Icon(
+                    Icons.tune_rounded,
+                    color: Colors.white.withOpacity(0.85),
+                    size: 21,
                   ),
-                );
-              }
-            },
-            child: Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
                 ),
-              ),
-              child: const Icon(
-                Icons.logout_rounded,
-                color: Color(0xFF8A8AAA),
-                size: 18,
               ),
             ),
           ),
