@@ -15,12 +15,19 @@ function isHinglish(message) {
     'nhi', 'nah', 'mat', 'kar', 'karo', 'kr', 'karti', 'karta', 'karna', 'gayi', 'gaya',
     'jaa', 'ja', 'raha', 'rahi', 'rhe', 'hoon', 'hu', 'bhi', 'toh', 'to', 'bas', 'abhi',
     'phir', 'fir', 'kyunki', 'pata', 'lagta', 'lagti', 'sach', 'pagal', 'yaar', 'bhai',
-    'bro', 'bacha', 'baby', 'jaan', 'love', 'pyaar', 'acchi', 'sundar', 'cute', 'milna',
+    'bacha', 'jaan', 'pyaar', 'acchi', 'sundar', 'milna',
     'baat', 'baatein', 'bol', 'bata', 'bta', 'dekh', 'dekho', 'sun', 'suno', 'kuch'
   ]);
   const words = text.replace(/[^a-zA-Z0-9\u0900-\u097F\s]/g, ' ').split(/\s+/).filter(Boolean);
   if (/[\u0900-\u097F]/.test(original) || words.some(word => strongWords.has(word))) return true;
   return false;
+}
+
+function detectInputLanguage(message) {
+  const original = String(message ?? '');
+  if (/[\u0900-\u097F]/.test(original)) return 'hindi';
+  if (isHinglish(original)) return 'hinglish';
+  return 'english';
 }
 
 function getMoodRules(mood) {
@@ -63,19 +70,21 @@ function getSystemPrompt(mood, hinglish, tier = 'basic') {
   }
 
   if (selectedTier === 'premium') {
-    if (selectedMood !== 'flirty') {
-      throw new Error('Premium mode is available only with flirty mood.');
+    if (!['flirty', 'romantic'].includes(selectedMood)) {
+      throw new Error('Premium mode is available only with flirty or romantic mood.');
     }
-    // Premium is intentionally standalone: do not load or append normal.txt,
-    // language rules, mood rules, or examples from the Basic/Smart prompt.
     const premiumPrompt = fs.readFileSync(PREMIUM_PROMPT_PATH, 'utf8').trim();
     if (!premiumPrompt) throw new Error('The Premium prompt file is empty.');
-    return premiumPrompt;
+    return [
+      premiumPrompt,
+      getMoodRules(selectedMood),
+      'LANGUAGE: Generate the reply in English only. The input has already been translated to English. Do not switch languages.',
+    ].join('\n\n');
   }
 
   const languageRule = hinglish
     ? 'LANGUAGE: Reply in natural Hinglish / casual Indian English. Use Roman Hindi when it fits; do not switch to formal Hindi.'
-    : "LANGUAGE: Match the user's language and casual style. Do not force Hindi.";
+    : "LANGUAGE: Match the user's language and casual style. When the message is in English, reply in English. Do not force Hindi.";
 
   return [getNormalModePrompt(selectedTier), languageRule, getMoodRules(selectedMood)].join('\n\n');
 }
@@ -95,4 +104,4 @@ function cleanReply(reply) {
   return cleaned.split('\n').map(line => line.trim()).filter(Boolean).slice(0, 2).join('\n').trim();
 }
 
-module.exports = { isHinglish, getSystemPrompt, getMoodRules, cleanReply };
+module.exports = { isHinglish, detectInputLanguage, getSystemPrompt, getMoodRules, cleanReply };
