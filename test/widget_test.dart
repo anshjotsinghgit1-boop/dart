@@ -1,30 +1,41 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dart_app/utils/coin_pricing.dart';
 
-import 'package:dart_app/main.dart';
+String words(int count) => List.filled(count, 'word').join(' ');
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('CoinPricing', () {
+    test('Basic charges one coin per 20-word block', () {
+      expect(CoinPricing.costForTier('basic', words(1)), 1);
+      expect(CoinPricing.costForTier('basic', words(20)), 1);
+      expect(CoinPricing.costForTier('basic', words(21)), 2);
+      expect(CoinPricing.costForTier('basic', words(40)), 2);
+      expect(CoinPricing.costForTier('basic', words(41)), 3);
+      expect(CoinPricing.costForTier('basic', words(60)), 3);
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('Smart charges two extra coins per additional block', () {
+      expect(CoinPricing.costForTier('smart', words(20)), 3);
+      expect(CoinPricing.costForTier('smart', words(21)), 5);
+      expect(CoinPricing.costForTier('smart', words(40)), 5);
+      expect(CoinPricing.costForTier('smart', words(41)), 7);
+      expect(CoinPricing.costForTier('smart', words(60)), 7);
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('Premium charges four extra coins per additional block', () {
+      expect(CoinPricing.costForTier('premium', words(20)), 6);
+      expect(CoinPricing.costForTier('premium', words(21)), 10);
+      expect(CoinPricing.costForTier('premium', words(40)), 10);
+      expect(CoinPricing.costForTier('premium', words(41)), 14);
+      expect(CoinPricing.costForTier('premium', words(60)), 14);
+    });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('whitespace and empty input are handled safely', () {
+      expect(CoinPricing.wordCount('  one   two\nthree '), 3);
+      expect(CoinPricing.wordCount('   '), 0);
+      expect(CoinPricing.costForTier('basic', ''), 1);
+      expect(CoinPricing.costForTier('smart', ''), 3);
+      expect(CoinPricing.costForTier('premium', ''), 6);
+    });
   });
 }
