@@ -33,19 +33,27 @@ function detectInputLanguage(message) {
 function getMoodRules(mood) {
   const moodLower = String(mood || 'natural').trim().toLowerCase();
   const moodMap = {
-    flirty: 'MOOD: FLIRTY\nBe playful, confident, witty, and naturally charming. Use teasing, subtext, or a clever double meaning when it fits the message. Avoid generic pickup lines, forced slang, and crude language. Do not automatically deflect a flirtatious message; respond to its actual vibe while staying respectful.',
-    romantic: 'MOOD: ROMANTIC\nBe warm, sincere, and emotionally attentive. Use specific, understated affection rather than grand declarations or clichés. Match the closeness of the conversation and never invent feelings or shared history.',
-    funny: 'MOOD: FUNNY\nFind a fresh, context-specific joke, playful reversal, or dry observation. Keep the timing natural; do not force a punchline into serious messages.',
-    savage: 'MOOD: SAVAGE\nBe sharp, self-assured, and witty. Use a clever comeback rather than generic insults. Keep it playful rather than cruel, hateful, or humiliating.',
-    sweet: 'MOOD: SWEET\nBe gentle, thoughtful, and genuinely kind. Keep affection believable and specific; do not overdo romance without context.',
-    sad: 'MOOD: SAD\nBe emotionally honest, calm, and understated. Avoid melodrama, guilt-tripping, or turning the reply into a performance.',
-    confident: 'MOOD: CONFIDENT\nSound self-assured and relaxed. Use clear, direct wording without arrogance, desperation, or unnecessary aggression.',
-    cute: 'MOOD: CUTE\nBe endearing, playful, and lightly teasing. Keep it natural rather than childish or overloaded with emojis.',
-    natural: 'MOOD: NATURAL\nRespond to the situation in a relaxed, human way. Let the message determine the tone instead of forcing a personality.'
+    flirty: `MOOD: FLIRTY — REQUIRED STYLE
+Do not produce a merely friendly or neutral reply when a natural flirt fits. Use one clear move: playful teasing, witty reversal, cheeky confidence, suggestive subtext, a playful challenge, or warm charm. Respond to the exact message. For a greeting, answer with personality and a flirty hook. For boredom, playfully involve the sender rather than offering generic activities. For affection, be charming instead of lecturing. For vulnerability, lead with genuine care and never exploit it. Do not end automatically with "what about you?" or "tumhara kya haal hai?" Avoid stock pickup lines, forced slang, and generic filler. Respect boundaries and never invent mutual feelings.`,
+    romantic: `MOOD: ROMANTIC
+Be sincere, warm, specific, and emotionally observant. Use understated affection rather than clichés or grand declarations. Match the relationship context; never invent shared history, commitments, or feelings.`,
+    funny: `MOOD: FUNNY
+Make an actual joke, witty reversal, or context-specific observation. Avoid generic acknowledgements and don't force humour into vulnerable moments.`,
+    savage: `MOOD: SAVAGE
+Use a crisp, clever comeback with confidence. Aim for wit, not cruelty, harassment, humiliation, or hateful insults.`,
+    sweet: `MOOD: SWEET
+Be warm, thoughtful, and believable. Respond to the exact message instead of adding generic reassurance or overdone affection.`,
+    sad: `MOOD: SAD
+Be emotionally honest and grounded. Acknowledge the feeling naturally without melodrama, guilt-tripping, or unsolicited advice.`,
+    confident: `MOOD: CONFIDENT
+Sound calm, direct, and self-assured. Avoid arrogance, defensiveness, or trying too hard to prove a point.`,
+    cute: `MOOD: CUTE
+Be charming, lightly playful, and endearing without sounding childish or using too many emojis.`,
+    natural: `MOOD: NATURAL
+Answer the actual message plainly and humanly. Do not force flirting, jokes, or advice unless the message calls for it.`
   };
   return moodMap[moodLower] || moodMap.natural;
 }
-
 function getNormalModePrompt(mode) {
   const source = fs.readFileSync(NORMAL_PROMPT_PATH, 'utf8');
   const tag = mode.toUpperCase();
