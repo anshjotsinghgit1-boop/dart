@@ -645,7 +645,7 @@ class _ReplierScreenState extends State<ReplierScreen>
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Premium Rizz: Bold, witty, and effortlessly smooth replies—with playful teasing, clever comebacks, and natural chemistry.',
+                    'English preferred 🇬🇧 — For the best, most natural replies, please write your message in English.',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 12,
