@@ -1951,6 +1951,8 @@ exports.generateReply = onCall(
 
     const tierConfig =
       getTierConfig(tier);
+    const translationConfig =
+      getTierConfig("basic");
 
     const wordCount = message
       ? message.split(/\s+/).filter(Boolean).length
@@ -2067,7 +2069,7 @@ exports.generateReply = onCall(
         inputLanguage === "english"
           ? message
           : await translateText(
-              tierConfig,
+              translationConfig,
               message,
               "English",
             );
@@ -2220,7 +2222,7 @@ exports.generateReply = onCall(
             : "natural conversational Hinglish written in Roman script, mixing everyday Hindi and English";
 
         cleanedReply = await translateText(
-          tierConfig,
+          translationConfig,
           cleanedReply,
           targetLanguage,
         );
