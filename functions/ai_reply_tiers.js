@@ -1,9 +1,9 @@
 /**
  * AI Reply Generation System - Tier Configurations
  *
- * Basic   = 1 coin  → GPT-4o-mini
- * Smart   = 3 coins → DeepSeek V3.2
- * Premium = 6 coins → GPT-5-mini
+ * Basic   = 1 coin  → openai/gpt-4o-mini
+ * Smart   = 3 coins → deepseek/deepseek-chat
+ * Premium = 6 coins → gryphe/mythomax-l2-13b
  *
  * All three use the AICredits OpenAI-compatible API.
  */
