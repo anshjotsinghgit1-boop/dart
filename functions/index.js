@@ -1866,11 +1866,25 @@ exports.generateReply = onCall(
       );
     }
 
+    if (
+      tier === "premium" &&
+      !/flirty|romantic/i.test(mood)
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Premium is available only for Flirty and Romantic moods.",
+      );
+    }
+
     const tierConfig =
       getTierConfig(tier);
 
+    const wordCount = message
+      ? message.split(/\s+/).filter(Boolean).length
+      : 0;
+
     const coinCost =
-      getTierCost(tier);
+      getTierCost(tier, wordCount);
 
     if (
       !Number.isInteger(
