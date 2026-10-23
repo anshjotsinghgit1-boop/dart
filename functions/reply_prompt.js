@@ -9,11 +9,11 @@ function isHinglish(message) {
   const original = String(message ?? '');
   const text = original.toLowerCase();
   const strongWords = new Set([
-    'hai', 'hain', 'ho', 'hoga', 'hogi', 'tha', 'thi', 'the', 'mujhe', 'tumhe', 'tumko',
+    'hai', 'hain', 'ho', 'hoga', 'hogi', 'tha', 'thi', 'mujhe', 'tumhe', 'tumko',
     'mere', 'mera', 'meri', 'tere', 'tera', 'teri', 'tum', 'aap', 'apka', 'apni', 'kya',
     'kyu', 'kyun', 'kaise', 'kaisa', 'kaisi', 'acha', 'accha', 'achha', 'haan', 'nahi',
     'nhi', 'nah', 'mat', 'kar', 'karo', 'kr', 'karti', 'karta', 'karna', 'gayi', 'gaya',
-    'jaa', 'ja', 'raha', 'rahi', 'rhe', 'hoon', 'hu', 'bhi', 'toh', 'to', 'bas', 'abhi',
+    'jaa', 'ja', 'raha', 'rahi', 'rhe', 'hoon', 'hu', 'bhi', 'toh', 'bas', 'abhi',
     'phir', 'fir', 'kyunki', 'pata', 'lagta', 'lagti', 'sach', 'pagal', 'yaar', 'bhai',
     'bacha', 'jaan', 'pyaar', 'acchi', 'sundar', 'milna',
     'baat', 'baatein', 'bol', 'bata', 'bta', 'dekh', 'dekho', 'sun', 'suno', 'kuch'
