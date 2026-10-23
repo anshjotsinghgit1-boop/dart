@@ -1939,9 +1939,12 @@ exports.generateReply = onCall(
       );
     }
 
+    const normalizedMood =
+      mood.toLowerCase().replace(/[^a-z]/g, "");
+
     if (
       tier === "premium" &&
-      !/flirty|romantic/i.test(mood)
+      !["flirty", "romantic"].includes(normalizedMood)
     ) {
       throw new HttpsError(
         "failed-precondition",
