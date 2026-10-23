@@ -34,7 +34,7 @@ class BrandHeader extends StatelessWidget {
               Positioned(
                 top: 32,
                 child: Icon(
-                  Icons.sunglasses,
+                  Icons.visibility_rounded,
                   size: 38,
                   color: Colors.white,
                 ),
