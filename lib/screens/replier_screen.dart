@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../services/ai_reply_service.dart';
 import '../services/coins_service.dart';
+import '../utils/coin_pricing.dart';
 import 'plans_screen.dart';
 
 class ReplierScreen extends StatefulWidget {
@@ -121,23 +122,8 @@ class _ReplierScreenState extends State<ReplierScreen>
     return mood.contains('flirty') || mood.contains('romantic');
   }
 
-  int _wordCount(String text) {
-    final trimmed = text.trim();
-    if (trimmed.isEmpty) return 0;
-    return trimmed.split(RegExp(r'\s+')).where((word) => word.isNotEmpty).length;
-  }
-
   int _costForTier(String tier, String text) {
-    final words = _wordCount(text);
-    final blocks = words == 0 ? 1 : (words + 19) ~/ 20;
-    final baseCost = _tierConfig[tier]?['cost'] as int? ?? 1;
-    final extraBlockCost = switch (tier) {
-      'basic' => 1,
-      'smart' => 2,
-      'premium' => 4,
-      _ => 1,
-    };
-    return baseCost + (blocks - 1) * extraBlockCost;
+    return CoinPricing.costForTier(tier, text);
   }
 
   Future<void> _generate() async {
